@@ -1,0 +1,10 @@
+{
+  // Extensoes recomendadas para o projeto SBurn.
+  // As duas ja' estao instaladas nesta maquina (verificado em 2026-08-17).
+  "recommendations": [
+    // Realce de sintaxe MQL5/MQL4, snippets e integracao com o MetaEditor.
+    "l-i-v.mql-tools",
+    // Snippets adicionais de MQL5.
+    "user413.mql5-vscode-snippets"
+  ]
+}

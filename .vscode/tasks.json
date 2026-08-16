@@ -1,0 +1,78 @@
+{
+  "version": "2.0.0",
+  // --------------------------------------------------------------------
+  // SBurn - compilacao pelo VS Code
+  //
+  // O metaeditor64.exe gera o .ex5 AO LADO do .mq5 que recebe em
+  // /compile. Como as pastas do repositorio estao ligadas ao MT5 por
+  // junction, o .ex5 nasce dentro do repositorio e o MT5 enxerga o mesmo
+  // arquivo - nao ha' copia nem segunda versao.
+  //
+  // /inc aponta para a pasta MQL5 do terminal, necessaria para resolver
+  // #include <SBurn/...> e #include <Trade\Trade.mqh>.
+  //
+  // O metaeditor e' app GUI: nao escreve em stdout. Por isso /log, e uma
+  // segunda task que le o log (UTF-16LE) e joga no terminal.
+  // --------------------------------------------------------------------
+  "tasks": [
+    {
+      "label": "MQL5: compilar arquivo atual",
+      "detail": "metaeditor64.exe /compile no arquivo aberto no editor",
+      "type": "process",
+      "command": "C:\\Program Files\\MetaTrader 5 EXNESS\\metaeditor64.exe",
+      "args": [
+        "/compile:${file}",
+        "/inc:${env:APPDATA}\\MetaQuotes\\Terminal\\53785E099C927DB68A545C249CDBCE06\\MQL5",
+        "/log:${workspaceFolder}\\.vscode\\compile.log"
+      ],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MQL5: mostrar log de compilacao",
+      "detail": "Le o compile.log (UTF-16LE) e reporta erros/warnings",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Get-Content -LiteralPath '${workspaceFolder}\\.vscode\\compile.log' -Encoding Unicode"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      },
+      "problemMatcher": {
+        "owner": "mql5",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^(.*)\\((\\d+),(\\d+)\\)\\s*:\\s*(error|warning)\\s+\\d+:\\s*(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "MQL5: compilar e mostrar log",
+      "detail": "Task padrao de build (Ctrl+Shift+B)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "MQL5: compilar arquivo atual",
+        "MQL5: mostrar log de compilacao"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  // ------------------------------------------------------------------
+  // SBurn - configuracao do editor
+  //
+  // ENCODING: utf8, nao windows1252.
+  // Medido em 2026-08-17: os .mq5/.mqh do repositorio estao em UTF-8
+  // sem BOM. Os unicos bytes acima de 127 sao em-dash (E2 80 94) nas
+  // caixas de comentario. Forcar windows1252 faria o VS Code exibir
+  // mojibake e gravar a corrupcao em disco no primeiro save.
+  // ------------------------------------------------------------------
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+
+  // Fim de linha para arquivos NOVOS. Os existentes mantem o EOL que
+  // ja' tem (hoje: LF puro) - o VS Code nao reescreve ao abrir.
+  "files.eol": "\r\n",
+
+  // Seguro: medido zero linha com espaco no fim nos .mq5/.mqh atuais.
+  "files.trimTrailingWhitespace": true,
+
+  // Garante realce mesmo se a extensao MQL nao estiver ativa.
+  "files.associations": {
+    "*.mq5": "mql5",
+    "*.mqh": "mql5",
+    "*.mq4": "mql4"
+  },
+
+  // Override explicito por linguagem (language id da extensao MQL Tools).
+  "[mql5]": {
+    "files.encoding": "utf8",
+    "files.trimTrailingWhitespace": true
+  },
+  "[mql4]": {
+    "files.encoding": "utf8"
+  }
+}
