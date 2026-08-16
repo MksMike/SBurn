@@ -5,6 +5,15 @@ logs/
 dados/*.csv
 dados/*.html
 dados/*.xlsx
+
+# Dados em QUALQUER pasta, nao so' em dados/.
+# Um export de ticks do MT5 passa facil de 2 GB; o GitHub recusa arquivo
+# acima de 100 MB. Em 2026-08-17 um XAUUSDm_*.csv de 2,96 GB apareceu na
+# raiz e escapou do padrao dados/*.csv.
+*.csv
+*.html
+*.xlsx
+*.tsv
 Thumbs.db
 .DS_Store
 
