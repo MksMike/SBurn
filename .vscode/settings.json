@@ -18,19 +18,34 @@
   // Seguro: medido zero linha com espaco no fim nos .mq5/.mqh atuais.
   "files.trimTrailingWhitespace": true,
 
-  // Garante realce mesmo se a extensao MQL nao estiver ativa.
+  // A extensao MQL Tools (l-i-v.mql-tools 2.2.0) registra .mq4/.mq5/.mqh sob o
+  // language id "cpp" - NAO existe language id "mql5". Verificado no
+  // package.json da extensao em 2026-08-17. Mapear para "mql5" quebraria o
+  // realce em vez de garanti-lo.
   "files.associations": {
-    "*.mq5": "mql5",
-    "*.mqh": "mql5",
-    "*.mq4": "mql4"
+    "*.mq5": "cpp",
+    "*.mqh": "cpp",
+    "*.mq4": "cpp"
   },
 
-  // Override explicito por linguagem (language id da extensao MQL Tools).
-  "[mql5]": {
+  "[cpp]": {
     "files.encoding": "utf8",
     "files.trimTrailingWhitespace": true
   },
-  "[mql4]": {
-    "files.encoding": "utf8"
-  }
+
+  // ------------------------------------------------------------------
+  // Extensao MQL Tools - compilar com Ctrl+F7 sem sair do VS Code.
+  //
+  // Include5Dir recebe a pasta MQL5, NAO MQL5\Include. Medido em
+  // 2026-08-17: o metaeditor anexa "Include\" ao valor de /inc sozinho.
+  // Apontar para MQL5\Include produz:
+  //   error 106: file 'Include\Include\Trade\Trade.mqh' not found
+  //
+  // A task de build (tasks.json) nao depende disto - ela ja' esta' medida
+  // e funcionando. Se o Ctrl+F7 falhar a resolver includes, o valor abaixo
+  // e' o primeiro suspeito.
+  // ------------------------------------------------------------------
+  "mql_tools.Metaeditor.Metaeditor5Dir": "C:\\Program Files\\MetaTrader 5 EXNESS\\metaeditor64.exe",
+  "mql_tools.Metaeditor.Include5Dir": "C:\\Users\\mikem\\AppData\\Roaming\\MetaQuotes\\Terminal\\53785E099C927DB68A545C249CDBCE06\\MQL5",
+  "mql_tools.LogFile.DeleteLog": "False"
 }
