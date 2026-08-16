@@ -1,5 +1,5 @@
 # CLAUDE.md — Projeto SBurn
-**Versao:** 3.0 | **Atualizado:** 2026-08-16
+**Versao:** 3.1 | **Atualizado:** 2026-08-17
 Leia por completo antes da primeira acao. Em conflito, este arquivo vence.
 
 ---
@@ -45,22 +45,32 @@ perdedores (contra-trade pos-BE e cruzamento de medias).
 
 ### Estrutura do repositorio
 
-    C:\dev\SBurn\                     <- raiz do repositorio git
+O repositorio ESPELHA o caminho da pasta de dados do MT5. O que esta' escrito no
+cabecalho de cada arquivo (`PASTA: <PastaDeDados>\MQL5\...`) e' literalmente o
+caminho dele dentro do repositorio.
+
+    C:\dev\SBurn\                              <- raiz do repositorio git
       CLAUDE.md
       README.md
       .gitignore
-      indicators\   S-Ind-*.mq5       -> junction para MQL5\Indicators\SBurn\
-      experts\      S-EA-*.mq5        -> junction para MQL5\Experts\SBurn\
-      include\      S-Include-*.mqh   -> junction para MQL5\Include\SBurn\
-      analise\      S-Py-*.py
-      docs\         S-Doc-*.md
-      dados\        CSVs (nao versionados)
+      .gitattributes                           <- * -text (congela os bytes)
+      .vscode\                                 <- settings, extensions, task de compilacao
+      MQL5\
+        Indicators\SBurn\  S-Ind-*.mq5         -> junction para o MT5
+        Experts\SBurn\     S-EA-*.mq5          -> junction para o MT5
+        Include\SBurn\     S-Include-*.mqh     -> junction para o MT5
+      analise\             S-Py-*.py
+      docs\                S-Doc-*.md
+      dados\               CSVs (nao versionados)
 
-Junctions (uma vez, cmd como administrador):
+Junctions (uma vez; `mklink /J` NAO exige administrador):
 
-    mklink /J "<PastaDeDados>\MQL5\Indicators\SBurn" "C:\dev\SBurn\indicators"
-    mklink /J "<PastaDeDados>\MQL5\Experts\SBurn"    "C:\dev\SBurn\experts"
-    mklink /J "<PastaDeDados>\MQL5\Include\SBurn"    "C:\dev\SBurn\include"
+    mklink /J "<PastaDeDados>\MQL5\Indicators\SBurn" "C:\dev\SBurn\MQL5\Indicators\SBurn"
+    mklink /J "<PastaDeDados>\MQL5\Experts\SBurn"    "C:\dev\SBurn\MQL5\Experts\SBurn"
+    mklink /J "<PastaDeDados>\MQL5\Include\SBurn"    "C:\dev\SBurn\MQL5\Include\SBurn"
+
+Para REMOVER um junction use `cmd /c rmdir "<caminho>"` (sem `/s`): apaga so' o
+link. `Remove-Item -Recurse` do PowerShell SEGUE o link e apaga os fontes.
 
 ### Convencao de nomes (o nome diz onde instalar)
 

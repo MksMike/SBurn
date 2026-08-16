@@ -5,9 +5,15 @@ Leia `CLAUDE.md` antes de qualquer coisa: regras, estado empirico e armadilhas.
 
 ## Instalacao
 
-    mklink /J "<PastaDeDados>\MQL5\Indicators\SBurn" "C:\dev\SBurn\indicators"
-    mklink /J "<PastaDeDados>\MQL5\Experts\SBurn"    "C:\dev\SBurn\experts"
-    mklink /J "<PastaDeDados>\MQL5\Include\SBurn"    "C:\dev\SBurn\include"
+O repositorio espelha o caminho da pasta de dados do MT5, entao cada arquivo mora
+no mesmo lugar dentro e fora do repo. Ligar por junction (nao copiar):
+
+    mklink /J "<PastaDeDados>\MQL5\Indicators\SBurn" "C:\dev\SBurn\MQL5\Indicators\SBurn"
+    mklink /J "<PastaDeDados>\MQL5\Experts\SBurn"    "C:\dev\SBurn\MQL5\Experts\SBurn"
+    mklink /J "<PastaDeDados>\MQL5\Include\SBurn"    "C:\dev\SBurn\MQL5\Include\SBurn"
+
+`mklink /J` nao exige administrador. Copiar em vez de ligar cria duas versoes do
+mesmo arquivo - e' a armadilha que o desenho do repo existe para evitar.
 
 Compilar (F7) nesta ordem: indicadores primeiro, EAs por ultimo.
 
@@ -15,12 +21,12 @@ Compilar (F7) nesta ordem: indicadores primeiro, EAs por ultimo.
 
 | Arquivo | v | Papel |
 |---|---|---|
-| `indicators/S-Ind-ScalpPullback.mq5` | 2.02 | Gatilho (buf 26) e regime (buf 27). Coracao da estrategia. |
-| `indicators/S-Ind-TMO_Scalper.mq5` | 4.02 | Sensores de contexto: zona (14), confluencia (15), ATR (16), histograma (0-2). |
-| `experts/S-EA-Pullback_Live.mq5` | 1.07 | EA operacional. Defaults = melhor config medida. |
-| `experts/S-EA-Test_ConsistencyGate.mq5` | 1.20 | EA de MEDICAO (nao opera). 99 colunas por sinal. |
-| `include/S-Include-ConsistencyGate.mqh` | 1.02 | Gate tick-based (relogio de mercado). |
-| `include/S-Include-MovConsistency.mqh` | — | Sensor do MKS-Engine (copia fiel). |
+| `MQL5/Indicators/SBurn/S-Ind-ScalpPullback.mq5` | 2.02 | Gatilho (buf 26) e regime (buf 27). Coracao da estrategia. |
+| `MQL5/Indicators/SBurn/S-Ind-TMO_Scalper.mq5` | 4.02 | Sensores de contexto: zona (14), confluencia (15), ATR (16), histograma (0-2). |
+| `MQL5/Experts/SBurn/S-EA-Pullback_Live.mq5` | 1.07 | EA operacional. Defaults = melhor config medida. |
+| `MQL5/Experts/SBurn/S-EA-Test_ConsistencyGate.mq5` | 1.20 | EA de MEDICAO (nao opera). 99 colunas por sinal. |
+| `MQL5/Include/SBurn/S-Include-ConsistencyGate.mqh` | 1.02 | Gate tick-based (relogio de mercado). |
+| `MQL5/Include/SBurn/S-Include-MovConsistency.mqh` | — | Sensor do MKS-Engine (copia fiel). |
 | `analise/S-Py-Analise_ConsistGate.py` | — | Analisa um CSV de medicao. |
 | `analise/S-Py-Compara_TFs.py` | — | Compara CSVs entre timeframes. |
 
