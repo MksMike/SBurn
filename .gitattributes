@@ -1,0 +1,10 @@
+# SBurn - integridade de bytes
+#
+# Desliga a conversao de fim de linha do git neste repositorio.
+# Motivo: os .mq5/.mqh foram auditados e o comportamento esta congelado.
+# O repositorio guarda exatamente os bytes do disco, em qualquer maquina,
+# independente do core.autocrlf global.
+#
+# Estado atual dos arquivos: LF puro, UTF-8 sem BOM.
+
+* -text

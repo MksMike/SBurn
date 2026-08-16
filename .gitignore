@@ -1,0 +1,13 @@
+*.ex5
+*.ex4
+*.log
+logs/
+dados/*.csv
+dados/*.html
+dados/*.xlsx
+Thumbs.db
+.DS_Store
+
+# backups e pastas de trabalho locais (nao versionar)
+*.zip
+SB/
