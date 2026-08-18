@@ -6,7 +6,7 @@
 //|             S-Ind-ScalpPullback.ex5  (sempre)                     |
 //|             S-Ind-TMO_Scalper.ex5    (se usar candidato B/C/D)    |
 //| ASSINATURA no log ao iniciar (prova de identidade):               |
-//|   "S-EA-Pullback_Live v2.01 | cand=... TF=... SPTF=..."           |
+//|   "S-EA-Pullback_Live v2.02 | cand=... TF=... SPTF=..."           |
 //+------------------------------------------------------------------+
 //| S-EA-Pullback_Live.mq5 — EA OPERACIONAL DO PROJETO SBURN          |
 //|                                                                    |
@@ -48,6 +48,21 @@
 //|    dispararia: recalibrar para a mediana daquela conta.            |
 //|                                                                    |
 //| CHANGELOG                                                          |
+//|  v2.02 - AUDITORIA da piramide (que segue DESLIGADA por padrao).   |
+//|   [B14] o ticket da adicao era achado por varredura, e a varredura |
+//|    aceitava qualquer posicao do magic da piramide aberta depois da |
+//|    principal — o que TODAS as adicoes satisfazem. Como a lista de  |
+//|    posicoes do MT5 nao e' garantidamente cronologica, o BE de uma  |
+//|    adicao podia mover o stop de OUTRA, e a adicao certa ficava sem |
+//|    BE. Agora o ticket vem do DEAL da propria ordem, por            |
+//|    DEAL_POSITION_ID, que e' unico.                                 |
+//|   [B15] a falha de identificacao era SILENCIOSA: a adicao seguia   |
+//|    so' com o stop inicial e nao aparecia em lugar nenhum. Agora    |
+//|    conta em g_pirFalhas e vai para o log.                          |
+//|   DOCUMENTADO SEM MUDAR COMPORTAMENTO — sao decisao a MEDIR, nao   |
+//|    bug: (a) a piramide SOBREVIVE ao BE e ao STOP da principal, so' |
+//|    sai em sinal novo do SP; (b) o sentinela g_r2Topo==0 impede a R2|
+//|    de disparar quando o recuo nao teve excursao favoravel nenhuma. |
 //|  v2.01 - InpPirInicioATR: separa ONDE a piramide COMECA de QUAL o  |
 //|   espacamento. Antes a 1a adicao entrava em 1x o passo; agora o    |
 //|   inicio e' proprio.                                               |
@@ -135,7 +150,7 @@
 //|   Medir essa divergencia e' o proposito deste EA.                  |
 //+------------------------------------------------------------------+
 #property copyright "SBurn"
-#property version   "2.01"
+#property version   "2.02"
 #property strict
 
 #property tester_indicator "SBurn\\S-Ind-ScalpPullback.ex5"
@@ -565,13 +580,38 @@ void PiramideAbrir(const int k)
    g_pirMfe[k]    = 0.0;
    g_pirArm[k]    = false;
    g_pirTicket[k] = 0;
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
+
+   //--- [B14] o ticket da adicao vem do DEAL DESTA ordem, nao de varredura.
+   //    A varredura antiga aceitava qualquer posicao do magic da piramide
+   //    aberta depois da principal — e TODAS as adicoes da sequencia
+   //    satisfazem isso. A ordem da lista de posicoes do MT5 nao e'
+   //    garantidamente cronologica, entao g_pirTicket[k] podia apontar para
+   //    OUTRA adicao: o breakeven de uma movia o stop da outra, e a adicao
+   //    certa ficava sem BE. POSITION_IDENTIFIER e' unico e resolve.
+   ulong posId = 0;
+   ulong deal  = g_tradePir.ResultDeal();
+   if(deal != 0 && HistorySelect(TimeCurrent() - 300, TimeCurrent() + 60))
+      posId = (ulong)HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+   if(posId != 0)
    {
-      ulong t = PositionGetTicket(i);
-      if(t == 0) continue;
-      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
-      if(PositionGetInteger(POSITION_MAGIC) != (long)InpPirMagic) continue;
-      if(PositionGetInteger(POSITION_TIME) >= (long)g_tEntrada) { g_pirTicket[k] = t; break; }
+      for(int i = PositionsTotal() - 1; i >= 0; i--)
+      {
+         ulong t = PositionGetTicket(i);
+         if(t == 0) continue;
+         if((ulong)PositionGetInteger(POSITION_IDENTIFIER) != posId) continue;
+         g_pirTicket[k] = t;
+         break;
+      }
+   }
+   if(g_pirTicket[k] == 0)
+   {
+      //--- [B15] a falha de identificacao era SILENCIOSA: a adicao existia,
+      //    o loop do BE a pulava para sempre (g_pirTicket==0) e ela seguia
+      //    so' com o stop inicial. Agora conta e aparece no log.
+      g_pirFalhas++;
+      PrintFormat("Piramide: adicao %d aberta mas NAO identificada (deal=%s). "
+                  "Ela fica com o stop inicial e SEM breakeven.",
+                  k + 1, IntegerToString((long)deal));
    }
    g_pirAbertas++;
    g_pirAdicoes++;
@@ -598,6 +638,17 @@ void PiramideFechar()
 
 //+------------------------------------------------------------------+
 //| Gerencia a piramide a cada tick: abre adicoes e move o BE de cada |
+//|                                                                   |
+//| A DECIDIR (comportamento atual, NAO medido isolado): a piramide   |
+//| SOBREVIVE ao BE e ao STOP da principal — so' e' encerrada por     |
+//| sinal novo do SP. Depois de um scratch ela continua aberta E ainda|
+//| pode abrir adicoes novas, sempre ancorada no g_pirBidRef da       |
+//| entrada ORIGINAL (a reentrada R2 nao re-ancora: Abre() so' rearma |
+//| a piramide quando g_seqAtual==0).                                 |
+//| Isso pode ser exatamente o desejado — e' a continuacao que a      |
+//| principal perde nos 63% de scratch, que e' o problema aberto da   |
+//| secao 5.2 do CLAUDE.md. Mas nunca foi medido dos dois jeitos.     |
+//| Nao alterar sem rodar as duas versoes na mesma janela.            |
 //+------------------------------------------------------------------+
 void PiramideGerenciar()
 {
@@ -779,7 +830,7 @@ int OnInit()
 
    AdotaPosicao();
 
-   PrintFormat("S-EA-Pullback_Live v2.01 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
+   PrintFormat("S-EA-Pullback_Live v2.02 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
                "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | R2=%s "
                "piramide=%s(inicio %.1f passo %.1f max %d)",
                EnumToString(InpCandidato), g_usaConflu?"ON":"off", g_usaHist?"ON":"off",
@@ -847,6 +898,14 @@ void OnTick()
       else
       {
          // pior adverso: enquanto piora, o recuo NAO esgotou
+         //
+         // LIMITE CONHECIDO (nao corrigido de proposito): g_r2Topo usa 0.0
+         // como "ainda nao congelou". Se o recuo nunca fez excursao favoravel
+         // (g_r2MaxDesde==0), congelar em zero fica indistinguivel de nao ter
+         // congelado, e a R2 nao dispara nesse scratch. Separar os dois casos
+         // (um bool) faria o gatilho passar a valer "qualquer tick a favor",
+         // que e' um gatilho DIFERENTE — mudanca de comportamento, exige
+         // medicao antes. Ver R1/R7 do CLAUDE.md.
          if(-excS > g_r2PiorAdv) { g_r2PiorAdv = -excS; g_r2BarraPior = barra; g_r2Topo = 0.0; }
          else if(g_r2Topo == 0.0 && (int)((barra - g_r2BarraPior) / ps) >= InpR2Calma)
             g_r2Topo = g_r2MaxDesde;              // CONGELA o topo do range
@@ -891,7 +950,10 @@ void OnTick()
 
    //--- sinal novo = nova sequencia direcional: zera piramide e gatilho
    g_r2Ativo = false; g_r2Feitas = 0; g_seqAtual = 0;
-   if(InpPirEnabled) PiramideFechar();   // [v2.00] a piramide sai junto com a principal
+   // Sinal novo encerra as DUAS estrategias. E' o UNICO ponto em que a
+   // piramide e' fechada — BE e STOP da principal nao a encerram (ver a
+   // nota em PiramideGerenciar).
+   if(InpPirEnabled) PiramideFechar();
 
    //--- regime do TF maior (celula validada)
    bool okReg;
