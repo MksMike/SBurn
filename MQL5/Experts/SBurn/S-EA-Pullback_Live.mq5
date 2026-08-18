@@ -6,7 +6,7 @@
 //|             S-Ind-ScalpPullback.ex5  (sempre)                     |
 //|             S-Ind-TMO_Scalper.ex5    (se usar candidato B/C/D)    |
 //| ASSINATURA no log ao iniciar (prova de identidade):               |
-//|   "S-EA-Pullback_Live v1.07 | cand=... TF=... SPTF=..."           |
+//|   "S-EA-Pullback_Live v2.01 | cand=... TF=... SPTF=..."           |
 //+------------------------------------------------------------------+
 //| S-EA-Pullback_Live.mq5 — EA OPERACIONAL DO PROJETO SBURN          |
 //|                                                                    |
@@ -48,37 +48,54 @@
 //|    dispararia: recalibrar para a mediana daquela conta.            |
 //|                                                                    |
 //| CHANGELOG                                                          |
+//|  v2.01 - InpPirInicioATR: separa ONDE a piramide COMECA de QUAL o  |
+//|   espacamento. Antes a 1a adicao entrava em 1x o passo; agora o    |
+//|   inicio e' proprio.                                               |
+//|   Medido: a adicao em 1.0xATR abre em 75% dos sinais e rende quase |
+//|   nada — e' ela que arruina a eficiencia (ret/DD 5,4x). Comecar em |
+//|   2.0xATR reduz a abertura para 49%: a metade eliminada sao os     |
+//|   movimentos que morrem cedo, exatamente os que nao valia          |
+//|   acompanhar. Elimina as adicoes ruins sem perder as boas.         |
+//|     inicio 1.0 (2 adicoes): $2.279  DD $360  ret/DD  6,3x          |
+//|     inicio 2.0 (2 adicoes): $2.333  DD $226  ret/DD 10,3x  <-      |
+//|     inicio 3.0 (2 adicoes): $1.864  DD $230  ret/DD  8,1x          |
+//|   Otimo NO MEIO da grade, com queda dos dois lados: assinatura de  |
+//|   estrutura, nao de pico de sobreajuste. Ainda assim e' HIPOTESE — |
+//|   a medicao vem sendo otimista vs o backtest real (com inicio 1.0  |
+//|   ela projetou DD de $360 e a execucao deu $509).                  |
+//|  v2.00 - DUAS ESTRATEGIAS NO MESMO EA, independentes:              |
+//|                                                                    |
+//|   [PRINCIPAL] pullback do SP + regime + BE no zero + stop 3.67xATR |
+//|     + REENTRADA R2 (nova, medida). Magic = InpMagic.               |
+//|     R2 = "range congelado no esgotamento": apos o scratch, o EA    |
+//|     acompanha o recuo; quando o preco para de fazer extremo        |
+//|     adverso novo por InpR2Calma barras, CONGELA o topo do range    |
+//|     formado desde o scratch; a reentrada dispara quando o preco    |
+//|     rompe esse topo. E' confirmacao de ESTADO (o recuo se          |
+//|     esgotou), nao relogio — coerente com a lei do projeto.         |
+//|     Medido: +19% de lucro e retorno/DD de 8,8x para 9,1x.          |
+//|     Substitui a reentrada por rompimento do extremo da v1.06,      |
+//|     que media pior (stop de 20% contra 8%).                        |
+//|                                                                    |
+//|   [SECUNDARIA] PIRAMIDE simultanea. Magic PROPRIO (InpPirMagic),   |
+//|     lote proprio, passo e numero de posicoes proprios. Adiciona    |
+//|     posicao a cada InpPirPassoATR de lucro do movimento, cada uma  |
+//|     com BE e stop PROPRIOS. Ligavel por InpPirEnabled.             |
+//|     Medido (passo 1.0xATR, 3 posicoes, junto com o principal):     |
+//|     +64% de lucro total, mas retorno/DD cai de 9,1x para 6,3x.     |
+//|     E' troca consciente: mais participacao na tendencia por mais   |
+//|     drawdown. Por isso vive separada, com risco proprio.           |
+//|                                                                    |
+//|   ATENCAO AO SIZING: com a piramide ligada podem existir ate       |
+//|   InpPirMaxPos posicoes simultaneas alem da principal. O risco     |
+//|   agregado NAO e' o de uma posicao — dimensionar sobre o total.    |
 //|  v1.07 - auditoria pre-backup: o contador de reentradas era        |
 //|   incrementado ANTES de a ordem ser confirmada; se a abertura      |
 //|   falhasse, a cota da piramide era consumida sem trade. Agora so'  |
 //|   incrementa apos a posicao existir.                               |
-//|  v1.06 - REENTRADA COM PIRAMIDE (opcional, DESLIGADA por padrao). |
-//|   Motivo medido: a estrategia fica no mercado apenas 9% do tempo  |
-//|   e participa de 31% do movimento direcional que ela mesma        |
-//|   identifica. Apos um scratch por breakeven, em 71% dos casos o   |
-//|   preco RETOMA a direcao original e anda ~10.000 pts sem ela.     |
-//|   Apos um stop, 83% e ~17.000 pts.                                |
-//|   Nenhuma variavel conhecida no momento do scratch prevê isso     |
-//|   (MFE, duracao, ATR: todos entre 66% e 77%, rho ~0.1). Logo o    |
-//|   gatilho tem que ser CONFIRMACAO, nao previsao — coerente com a  |
-//|   lei do projeto: evento de mudanca nao tem direcao, ESTADO tem.  |
-//|                                                                    |
-//|   GATILHO: o preco supera o EXTREMO que o trade anterior fez       |
-//|   antes de voltar (entrada + MFE), com folga de InpReentryK x ATR.|
-//|   Por que este: num range o preco por definicao NAO supera o      |
-//|   extremo anterior — ele bate e volta. Se superou, deixou de ser  |
-//|   range. O filtro e' a propria definicao de lateralidade,         |
-//|   invertida. E a entrada e' por confirmacao (o mercado prova).    |
-//|                                                                    |
-//|   PIRAMIDE: SEQUENCIAL (uma posicao por vez), ate                 |
-//|   InpMaxReentradas por sequencia direcional. Nao ha exposicao     |
-//|   simultanea: o risco por trade continua sendo 1 stop.            |
-//|   A coluna "seq" no CSV traz o indice (0 = original, 1..N =       |
-//|   reentradas) para medir a curva de decaimento e decidir a        |
-//|   profundidade — nao chutar.                                      |
-//|   Condicoes: regime do TF maior ainda alinhado, gatilho expira em |
-//|   InpReentryBars barras, e opcionalmente exige ATR em expansao.   |
-//|   TUDO NAO CALIBRADO ate a grade rodar.                           |
+//|  v1.06 - primeira tentativa de reentrada (por rompimento do        |
+//|   extremo anterior). MEDIDA E REPROVADA: stop subia de 8% para 20%,|
+//|   retorno/DD caia de 26,6x para 21,4x. Substituida pelo R2 na v2.  |
 //|  v1.04 - CORRECAO DE BUG INTRODUZIDO NA v1.03: o aquecimento       |
 //|   usava BarsCalculated() ANTES de qualquer CopyBuffer. Em MQL5,    |
 //|   BarsCalculated NAO forca o calculo de um indicador de OUTRO      |
@@ -118,7 +135,7 @@
 //|   Medir essa divergencia e' o proposito deste EA.                  |
 //+------------------------------------------------------------------+
 #property copyright "SBurn"
-#property version   "1.07"
+#property version   "2.01"
 #property strict
 
 #property tester_indicator "SBurn\\S-Ind-ScalpPullback.ex5"
@@ -156,12 +173,22 @@ input int             InpATRPeriod = 14;     // Periodo do ATR
 input double          InpArmATR    = 0.73;   // Armar breakeven em, x ATR
 input double          InpStopATR   = 3.67;   // Stop inicial, x ATR
 
-input group "=== Reentrada / piramide (GRADE, NAO CALIBRADA) ==="
-input bool            InpReentry     = false; // Ligar reentrada apos scratch/stop
-input double          InpReentryK    = 0.00;  // Folga alem do extremo anterior, x ATR
-input int             InpMaxReentradas = 3;   // Maximo de reentradas por sequencia
-input int             InpReentryBars = 24;    // Validade do gatilho, em barras
-input bool            InpReentryExp  = false; // Exigir ATR em expansao vs a entrada original
+input group "=== Reentrada R2 (parte da estrategia PRINCIPAL) ==="
+input bool            InpR2Enabled   = true;  // Ligar reentrada por esgotamento
+input int             InpR2Piso      = 5;     // Piso: barras minimas apos o scratch
+input int             InpR2Calma     = 3;     // Barras sem novo extremo adverso = esgotou
+input int             InpR2Validade  = 120;   // Validade do monitoramento, barras
+input int             InpR2MaxPorSeq = 1;     // Maximo de reentradas por sequencia
+
+input group "=== ESTRATEGIA SECUNDARIA: piramide (independente) ==="
+input bool            InpPirEnabled  = false; // Ligar a piramide
+input double          InpPirLots     = 0.01;  // Volume POR ADICAO
+input ulong           InpPirMagic    = 20260901; // Magic proprio da piramide
+input double          InpPirInicioATR = 2.00; // 1a adicao em, x ATR (medido: 2.0)
+input double          InpPirPassoATR = 1.00;  // Espacamento entre adicoes, x ATR
+input int             InpPirMaxPos   = 2;     // Maximo de ADICOES (alem da principal)
+input double          InpPirArmATR   = 0.73;  // Armar BE da adicao em, x ATR
+input double          InpPirStopATR  = 3.67;  // Stop da adicao, x ATR
 
 input group "=== Execucao ==="
 input double          InpLots      = 0.01;   // Volume por operacao
@@ -207,19 +234,35 @@ bool     g_beArmado  = false;
 int      g_tentBE    = 0;
 double   g_mfe = 0.0, g_mae = 0.0;
 
-//--- reentrada [v1.06]
-bool     g_reArmado = false;   // ha gatilho de reentrada pendente?
-int      g_reDir    = 0;       // direcao do gatilho
-double   g_reNivel  = 0.0;     // preco que precisa ser superado (em BID)
-double   g_reAtrOrig= 0.0;     // ATR da entrada original (p/ teste de expansao)
-datetime g_reAte    = 0;       // validade do gatilho
-int      g_reIdx    = 0;       // quantas reentradas ja feitas nesta sequencia
-int      g_seqAtual = 0;       // indice da posicao corrente (0 = original)
+//--- REENTRADA R2 [v2.00] — monitoramento do esgotamento do recuo
+bool     g_r2Ativo   = false;  // monitorando um scratch?
+int      g_r2Dir     = 0;      // direcao do trade que scratchou
+double   g_r2BidBE   = 0.0;    // BID no momento do scratch (referencia)
+double   g_r2Atr     = 0.0;    // ATR daquele trade
+double   g_r2PiorAdv = 0.0;    // pior excursao adversa desde o scratch
+double   g_r2MaxDesde= 0.0;    // maior excursao favoravel desde o scratch
+double   g_r2Topo    = 0.0;    // topo CONGELADO do range (0 = ainda nao congelou)
+datetime g_r2BarraPior = 0;    // barra do pior adverso
+datetime g_r2Inicio  = 0;      // barra do scratch
+int      g_r2Feitas  = 0;      // reentradas ja feitas nesta sequencia
+int      g_seqAtual  = 0;      // indice da posicao principal (0 = original, 1+ = reentrada)
+
+//--- PIRAMIDE [v2.00] — estrategia secundaria, magic proprio
+CTrade   g_tradePir;
+bool     g_pirAtiva  = false;  // ha sequencia de piramide em andamento?
+int      g_pirDir    = 0;
+double   g_pirBidRef = 0.0;    // BID de referencia (entrada da principal)
+double   g_pirAtr    = 0.0;
+int      g_pirAbertas= 0;      // quantas adicoes ja foram abertas
+double   g_pirBidEnt[8];       // BID de entrada de cada adicao (p/ o BE dela)
+double   g_pirMfe[8];          // excursao favoravel de cada adicao
+bool     g_pirArm[8];          // BE da adicao armado?
+ulong    g_pirTicket[8];       // ticket de cada adicao
 
 //--- diagnostico
 long     g_nOps=0, g_falhaSig=0, g_falhaCtx=0, g_falhaAbrir=0, g_falhaFechar=0;
 long     g_blockSpread=0, g_vetoRegime=0, g_vetoConflu=0, g_vetoHist=0;
-long     g_vetoReExpira=0, g_vetoReRegime=0;
+long     g_r2Disparos=0, g_r2Expirados=0, g_pirAdicoes=0, g_pirFalhas=0;
 long     g_saidaBE=0, g_saidaStop=0, g_saidaSinal=0;
 
 //+------------------------------------------------------------------+
@@ -342,14 +385,19 @@ void RegistraSaida(const string motivo)
 
    // [v1.06] arma o gatilho de reentrada: precisa superar o EXTREMO que este
    // trade fez antes de voltar. Em range o preco nao supera; em tendencia sim.
-   if(InpReentry && motivo != "SINAL" && g_reIdx < InpMaxReentradas && g_atrEnt > 0)
+   // [v2.00] R2: comeca a MONITORAR o esgotamento do recuo. Nao arma nivel
+   // aqui — o topo do range so' e' congelado quando o recuo para de piorar.
+   if(InpR2Enabled && motivo != "SINAL" && g_r2Feitas < InpR2MaxPorSeq && g_atrEnt > 0)
    {
-      double extremo = g_bidEnt + g_dir * (g_mfe + InpReentryK * g_atrEnt) * g_point;
-      g_reArmado  = true;
-      g_reDir     = g_dir;
-      g_reNivel   = extremo;
-      g_reAtrOrig = g_atrEnt;
-      g_reAte     = TimeCurrent() + (datetime)(InpReentryBars * PeriodSeconds(PERIOD_CURRENT));
+      g_r2Ativo     = true;
+      g_r2Dir       = g_dir;
+      g_r2BidBE     = Bid();
+      g_r2Atr       = g_atrEnt;
+      g_r2PiorAdv   = 0.0;
+      g_r2MaxDesde  = 0.0;
+      g_r2Topo      = 0.0;
+      g_r2Inicio    = iTime(_Symbol, PERIOD_CURRENT, 0);
+      g_r2BarraPior = g_r2Inicio;
    }
 
    // P&L em pontos sobre o BID, comparavel com a medicao
@@ -445,6 +493,17 @@ void Abre(const int dir)
 
    Marca("IN", g_tEntrada, g_pEntrada, dir, dir > 0 ? clrLime : clrOrangeRed,
          dir > 0 ? 233 : 234);
+
+   //--- [v2.00] a piramide acompanha a entrada principal (so' na original)
+   if(InpPirEnabled && g_seqAtual == 0)
+   {
+      g_pirAtiva   = true;
+      g_pirDir     = dir;
+      g_pirBidRef  = bid;
+      g_pirAtr     = atr;
+      g_pirAbertas = 0;
+      for(int k = 0; k < 8; k++) { g_pirTicket[k] = 0; g_pirArm[k] = false; g_pirMfe[k] = 0; }
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -468,6 +527,108 @@ void AplicaBreakeven()
       if(g_tentBE == 1)
          PrintFormat("Falha ao mover BE: %d %s", g_trade.ResultRetcode(),
                      g_trade.ResultRetcodeDescription());
+   }
+}
+
+//+------------------------------------------------------------------+
+//| [v2.00] PIRAMIDE — estrategia SECUNDARIA, magic e lote proprios.  |
+//| Adiciona uma posicao a cada InpPirPassoATR de excursao favoravel   |
+//| da PRINCIPAL. Cada adicao carrega BE e stop PROPRIOS, medidos do   |
+//| seu proprio nivel de entrada — nao e' grid: so' adiciona em cima   |
+//| de movimento que ja' andou a favor.                                |
+//+------------------------------------------------------------------+
+void PiramideAbrir(const int k)
+{
+   if(k < 0 || k >= 8) return;
+   double bid = Bid(), ask = Ask();
+   if(bid <= 0 || ask <= 0 || g_pirAtr <= 0) return;
+   if(InpMaxSpread > 0 && (ask - bid) / g_point > InpMaxSpread) return;
+
+   double spread = (ask - bid) / g_point;
+   double stopPts = InpPirStopATR * g_pirAtr;
+   double nivelBid = (g_pirDir > 0) ? (bid - stopPts * g_point) : (bid + stopPts * g_point);
+   double sl = (g_pirDir > 0) ? nivelBid : nivelBid + spread * g_point;
+   sl = NormalizeDouble(sl, _Digits);
+
+   double vol = VolumeValido(InpPirLots);
+   bool ok = (g_pirDir > 0)
+             ? g_tradePir.Buy (vol, _Symbol, 0.0, sl, 0.0, "SBurn piramide")
+             : g_tradePir.Sell(vol, _Symbol, 0.0, sl, 0.0, "SBurn piramide");
+   if(!ok)
+   {
+      g_pirFalhas++;
+      PrintFormat("Piramide: falha ao abrir adicao %d: %d %s", k + 1,
+                  g_tradePir.ResultRetcode(), g_tradePir.ResultRetcodeDescription());
+      return;
+   }
+   g_pirBidEnt[k] = bid;
+   g_pirMfe[k]    = 0.0;
+   g_pirArm[k]    = false;
+   g_pirTicket[k] = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong t = PositionGetTicket(i);
+      if(t == 0) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != (long)InpPirMagic) continue;
+      if(PositionGetInteger(POSITION_TIME) >= (long)g_tEntrada) { g_pirTicket[k] = t; break; }
+   }
+   g_pirAbertas++;
+   g_pirAdicoes++;
+   Marca("PIR", TimeCurrent(), g_tradePir.ResultPrice(), g_pirDir,
+         g_pirDir > 0 ? clrAqua : clrMagenta, g_pirDir > 0 ? 233 : 234);
+}
+
+//+------------------------------------------------------------------+
+//| Fecha todas as posicoes da piramide                                |
+//+------------------------------------------------------------------+
+void PiramideFechar()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong t = PositionGetTicket(i);
+      if(t == 0) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+      if(PositionGetInteger(POSITION_MAGIC) != (long)InpPirMagic) continue;
+      g_tradePir.PositionClose(t, InpSlippage);
+   }
+   g_pirAtiva = false; g_pirAbertas = 0;
+   for(int k = 0; k < 8; k++) { g_pirTicket[k] = 0; g_pirArm[k] = false; g_pirMfe[k] = 0; }
+}
+
+//+------------------------------------------------------------------+
+//| Gerencia a piramide a cada tick: abre adicoes e move o BE de cada |
+//+------------------------------------------------------------------+
+void PiramideGerenciar()
+{
+   if(!InpPirEnabled || !g_pirAtiva || g_pirAtr <= 0) return;
+   double bid = Bid();
+   if(bid <= 0) return;
+   double excRef = (bid - g_pirBidRef) / g_point * g_pirDir;   // excursao da PRINCIPAL
+
+   //--- abre a proxima adicao quando o movimento atinge o passo seguinte
+   int maxAd = (InpPirMaxPos < 8) ? InpPirMaxPos : 8;
+   if(g_pirAbertas < maxAd)
+   {
+      // [v2.01] a 1a adicao entra em InpPirInicioATR; as seguintes somam o passo
+      double alvo = (InpPirInicioATR + g_pirAbertas * InpPirPassoATR) * g_pirAtr;
+      if(excRef >= alvo) PiramideAbrir(g_pirAbertas);
+   }
+
+   //--- BE proprio de cada adicao, no nivel BID de entrada dela
+   for(int k = 0; k < g_pirAbertas && k < 8; k++)
+   {
+      if(g_pirTicket[k] == 0 || g_pirArm[k]) continue;
+      if(!PositionSelectByTicket(g_pirTicket[k])) { g_pirTicket[k] = 0; continue; }
+      double excK = (bid - g_pirBidEnt[k]) / g_point * g_pirDir;
+      if(excK > g_pirMfe[k]) g_pirMfe[k] = excK;
+      if(g_pirMfe[k] >= InpPirArmATR * g_pirAtr)
+      {
+         double spread = (Ask() - bid) / g_point;
+         double sl = (g_pirDir > 0) ? g_pirBidEnt[k] : g_pirBidEnt[k] + spread * g_point;
+         if(g_tradePir.PositionModify(g_pirTicket[k], NormalizeDouble(sl, _Digits), 0.0))
+            g_pirArm[k] = true;
+      }
    }
 }
 
@@ -547,6 +708,18 @@ int OnInit()
    if(g_point <= 0) { Print("Ponto invalido"); return INIT_FAILED; }
    if(InpArmATR <= 0 || InpStopATR <= 0 || InpLots <= 0 || InpATRPeriod < 1)
    { Print("Parametros invalidos"); return INIT_PARAMETERS_INCORRECT; }
+   // [v2.01] a piramide e' estrategia SEPARADA: parametros e magic proprios
+   if(InpPirEnabled)
+   {
+      if(InpPirInicioATR <= 0 || InpPirPassoATR <= 0 || InpPirLots <= 0 || InpPirMaxPos < 1)
+      { Print("Parametros da piramide invalidos"); return INIT_PARAMETERS_INCORRECT; }
+      if(InpPirMagic == InpMagic)
+      {
+         Print("InpPirMagic deve ser DIFERENTE de InpMagic — magics iguais "
+               "misturam as duas estrategias e corrompem a contabilidade.");
+         return INIT_PARAMETERS_INCORRECT;
+      }
+   }
 
    //--- [B12] os filtros derivam do candidato: impossivel misturar
    g_usaConflu = (InpCandidato == B_CONFLU || InpCandidato == D_COMBO);
@@ -584,6 +757,9 @@ int OnInit()
    }
 
    g_trade.SetExpertMagicNumber(InpMagic);
+   g_tradePir.SetExpertMagicNumber(InpPirMagic);      // [v2.00] magic proprio
+   g_tradePir.SetDeviationInPoints(InpSlippage);
+   g_tradePir.SetTypeFillingBySymbol(_Symbol);
    g_trade.SetDeviationInPoints(InpSlippage);
    g_trade.SetTypeFillingBySymbol(_Symbol);
 
@@ -603,12 +779,14 @@ int OnInit()
 
    AdotaPosicao();
 
-   PrintFormat("S-EA-Pullback_Live v1.07 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
-               "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | reentry=%s(K=%.2f max=%d)",
+   PrintFormat("S-EA-Pullback_Live v2.01 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
+               "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | R2=%s "
+               "piramide=%s(inicio %.1f passo %.1f max %d)",
                EnumToString(InpCandidato), g_usaConflu?"ON":"off", g_usaHist?"ON":"off",
                EnumToString(_Period), EnumToString(InpSPTF),
                InpArmATR, InpStopATR, VolumeValido(InpLots), InpMaxSpread,
-               InpReentry?"ON":"off", InpReentryK, InpMaxReentradas);
+               InpR2Enabled?"ON":"off", InpPirEnabled?"ON":"off",
+               InpPirInicioATR, InpPirPassoATR, InpPirMaxPos);
    return INIT_SUCCEEDED;
 }
 
@@ -618,7 +796,8 @@ void OnDeinit(const int reason)
    PrintFormat("=== %s: %d operacoes | saidas: BE=%d STOP=%d SINAL=%d ===",
                EnumToString(InpCandidato), (int)g_nOps,
                (int)g_saidaBE, (int)g_saidaStop, (int)g_saidaSinal);
-   PrintFormat("reentradas: expiradas=%d regime mudou=%d", (int)g_vetoReExpira, (int)g_vetoReRegime);
+   PrintFormat("R2: reentradas=%d expiradas=%d | piramide: adicoes=%d falhas=%d",
+               (int)g_r2Disparos, (int)g_r2Expirados, (int)g_pirAdicoes, (int)g_pirFalhas);
    PrintFormat("vetos: regime=%d conflu=%d hist=%d spread=%d | "
                "falhas: sinal=%d contexto=%d abrir=%d fechar=%d",
                (int)g_vetoRegime, (int)g_vetoConflu, (int)g_vetoHist, (int)g_blockSpread,
@@ -644,6 +823,9 @@ void OnTick()
       g_temPos = false;
    }
 
+   //--- [v2.00] piramide: gerencia adicoes e BE proprios
+   PiramideGerenciar();
+
    //--- excursoes (sobre o BID, igual a medicao) e breakeven
    if(g_temPos)
    {
@@ -653,32 +835,39 @@ void OnTick()
       AplicaBreakeven();
    }
 
-   //--- [v1.06] gatilho de reentrada: so' com posicao fechada
-   if(InpReentry && g_reArmado && !g_temPos)
+   //--- [v2.00] R2: monitora o esgotamento do recuo e reentra no rompimento
+   if(InpR2Enabled && g_r2Ativo && !g_temPos)
    {
-      if(TimeCurrent() > g_reAte) { g_reArmado = false; g_vetoReExpira++; }
+      int ps = PeriodSeconds(PERIOD_CURRENT);
+      datetime barra = iTime(_Symbol, PERIOD_CURRENT, 0);
+      int desde = (int)((barra - g_r2Inicio) / ps);
+      double excS = (Bid() - g_r2BidBE) / g_point * g_r2Dir;
+
+      if(desde > InpR2Validade) { g_r2Ativo = false; g_r2Expirados++; }
       else
       {
-         double b = Bid();
-         bool rompeu = (g_reDir > 0) ? (b >= g_reNivel) : (b <= g_reNivel);
-         if(rompeu)
+         // pior adverso: enquanto piora, o recuo NAO esgotou
+         if(-excS > g_r2PiorAdv) { g_r2PiorAdv = -excS; g_r2BarraPior = barra; g_r2Topo = 0.0; }
+         else if(g_r2Topo == 0.0 && (int)((barra - g_r2BarraPior) / ps) >= InpR2Calma)
+            g_r2Topo = g_r2MaxDesde;              // CONGELA o topo do range
+         if(excS > g_r2MaxDesde) g_r2MaxDesde = excS;
+
+         // gatilho: piso cumprido, recuo esgotado, e rompeu o topo congelado
+         if(desde >= InpR2Piso && g_r2Topo != 0.0 && excS > g_r2Topo)
          {
-            bool okReg2, okAtr;
+            bool okReg2;
             double reg2 = LeBuffer(g_hSPreg, 27, 1, okReg2);
-            double atrN = LeBuffer(g_hATR, 0, 1, okAtr) / g_point;
-            if(!okReg2 || !okAtr) { /* tenta no proximo tick */ }
-            else if(reg2 * g_reDir <= 0) { g_reArmado = false; g_vetoReRegime++; }
-            else if(InpReentryExp && atrN <= g_reAtrOrig) { /* espera expansao */ }
-            else
+            if(okReg2 && reg2 * g_r2Dir > 0)      // regime ainda alinhado
             {
-               int dirRe = g_reDir;
-               g_reArmado = false;
-               g_seqAtual = g_reIdx + 1;
+               int dirRe = g_r2Dir;
+               g_r2Ativo = false;
+               g_seqAtual = g_r2Feitas + 1;
                Abre(dirRe);
-               if(g_temPos) g_reIdx++;         // so' consome a cota se abriu
+               if(g_temPos) { g_r2Feitas++; g_r2Disparos++; }
                else         g_seqAtual = 0;
                return;
             }
+            else if(okReg2) g_r2Ativo = false;    // regime virou: descarta
          }
       }
    }
@@ -701,7 +890,8 @@ void OnTick()
    if(g_temPos && !Fecha("SINAL")) return;       // nao abre se nao conseguiu fechar
 
    //--- sinal novo = nova sequencia direcional: zera piramide e gatilho
-   g_reArmado = false; g_reIdx = 0; g_seqAtual = 0;
+   g_r2Ativo = false; g_r2Feitas = 0; g_seqAtual = 0;
+   if(InpPirEnabled) PiramideFechar();   // [v2.00] a piramide sai junto com a principal
 
    //--- regime do TF maior (celula validada)
    bool okReg;
