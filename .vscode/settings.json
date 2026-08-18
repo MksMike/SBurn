@@ -11,9 +11,13 @@
   "files.encoding": "utf8",
   "files.autoGuessEncoding": false,
 
-  // Fim de linha para arquivos NOVOS. Os existentes mantem o EOL que
-  // ja' tem (hoje: LF puro) - o VS Code nao reescreve ao abrir.
-  "files.eol": "\r\n",
+  // Fim de linha: LF, igual ao resto do repositorio.
+  // Estava em CRLF ate' 2026-08-18 e brigava com a invariante do
+  // .gitattributes ("* -text" congela os bytes, entao o que o editor
+  // grava e' o que vai para o repo). Custou um S-EA-Pullback_Live.mq5
+  // salvo inteiro em CRLF: o diff virou 907 linhas trocadas em vez de
+  // 263, e o arquivo teve de ser normalizado a mao antes do commit.
+  "files.eol": "\n",
 
   // Seguro: medido zero linha com espaco no fim nos .mq5/.mqh atuais.
   "files.trimTrailingWhitespace": true,
