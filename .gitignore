@@ -20,3 +20,6 @@ Thumbs.db
 # backups e pastas de trabalho locais (nao versionar)
 *.zip
 SB/
+
+# Saidas brutas de medicao (relatorios de texto)
+dados/*.txt
