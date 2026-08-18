@@ -177,6 +177,25 @@ duracao, ATR: 66-77%, rho ~0,1).
 Reprovado: reentrada por rompimento do extremo (stop sobe de 8% para 20%; ret/DD cai
 de 26,6x para 21,4x), com ou sem filtro de expansao de ATR, com 1 ou 3 reentradas.
 
+**Aprovada no lugar dela — R2, "range congelado no esgotamento"** (v2.00 do EA):
+apos o scratch o EA acompanha o recuo; quando o preco para de fazer extremo adverso
+novo por `InpR2Calma` barras, CONGELA o topo do range formado desde o scratch, e a
+reentrada dispara no rompimento desse topo. E' confirmacao de ESTADO, nao relogio —
+coerente com a lei 1. Medido: **+19% de lucro, ret/DD de 8,8x para 9,1x**.
+
+**Piramide (v2.00/v2.01) — estrategia SECUNDARIA, magic e lote proprios, DESLIGADA
+por padrao.** Adiciona posicoes conforme o movimento anda a favor, cada uma com BE e
+stop proprios. Inicio em 1,0xATR: +64% de lucro mas ret/DD de 9,1x para 6,3x. A v2.01
+separou ONDE comeca de QUAL o espacamento: inicio 2,0xATR da' $2.333 / DD $226 /
+ret/DD 10,3x contra $2.279 / DD $360 / 6,3x do inicio 1,0 — otimo NO MEIO da grade,
+com queda dos dois lados (assinatura de estrutura, nao de pico de sobreajuste).
+
+> **Procedencia destes tres blocos:** vieram do CHANGELOG do proprio
+> `S-EA-Pullback_Live` v2.00/v2.01, **nao foram re-verificados**. As bases nao sao a
+> mesma da tabela 5.1 (26,6x): sao outra janela/config. O proprio changelog registra
+> que a medicao vem saindo OTIMISTA contra o backtest real — com inicio 1,0 projetou
+> DD $360 e a execucao deu $509. Tratar como **hipotese medida**, nao como validado.
+
 **Em aberto:** `SIG_PBSHALLOW` (pullback raso dentro do regime, sem exigir retorno ao
 canal PAC) — implementado no EA de medicao v1.20, **ainda nao rodado**.
 
