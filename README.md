@@ -41,6 +41,8 @@ falta nele para reproduzir o resultado de referencia.
 | `setup/S-Ps-Setup_Maquina.ps1` | 1.00 | Parametriza um PC: alias, junctions, verificacao. |
 | `docs/S-Doc-Maquinas.md` | 1.0 | Registro das maquinas e do estado de cada uma. |
 | `docs/S-Doc-Spread_Contas.md` | 1.1 | Standard x Raw: medicao, decisao e a armadilha do spread carimbado. |
+| `docs/S-Doc-Checkpoint_2026-08-18.md` | 1.0 | Checkpoint do dia: o que foi feito, o que ficou invalido e a fila. |
+| `docs/AUDITORIA_SINCRONIA.md` | — | Auditoria repo x PC x GitHub de 2026-08-18 (secoes 4.2 e 4.3 ja resolvidas). |
 
 ## Reproduzir o resultado de referencia
 

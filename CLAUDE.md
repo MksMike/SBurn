@@ -1,5 +1,5 @@
 # CLAUDE.md — Projeto SBurn
-**Versao:** 3.2 | **Atualizado:** 2026-08-18
+**Versao:** 4.0 | **Atualizado:** 2026-08-18
 Leia por completo antes da primeira acao. Em conflito, este arquivo vence.
 
 ---
@@ -195,6 +195,18 @@ com queda dos dois lados (assinatura de estrutura, nao de pico de sobreajuste).
 > mesma da tabela 5.1 (26,6x): sao outra janela/config. O proprio changelog registra
 > que a medicao vem saindo OTIMISTA contra o backtest real — com inicio 1,0 projetou
 > DD $360 e a execucao deu $509. Tratar como **hipotese medida**, nao como validado.
+
+> **INVALIDADO em 2026-08-18 — todo numero de piramide acima foi medido na v2.01,
+> com o bug `[B14]` ATIVO.** O `[B14]` fazia o breakeven de uma adicao mover o stop
+> de OUTRA adicao, e deixava a adicao certa sem BE nenhum. Numero de piramide medido
+> antes da v2.02 **nao descreve o codigo atual** e nao da' para inferir o sinal da
+> correcao sem rodar: BE na posicao errada tanto pode ter protegido cedo demais
+> quanto tarde demais. Vale o mesmo para o backtest de `InpPirEnabled=true`
+> registrado como $2.195,53 / DD $324,04 / PF 4,69 / 227 operacoes.
+> **Re-medir na v2.02 antes de citar qualquer um deles.**
+> O controle `InpPirEnabled=false` ($1.494,35 / DD $187,34 / PF 4,85 / 160
+> operacoes) **continua valido**: `[B14]` e `[B15]` vivem inteiramente dentro do
+> caminho da piramide, que fica dormente no default.
 
 **Em aberto:** `SIG_PBSHALLOW` (pullback raso dentro do regime, sem exigir retorno ao
 canal PAC) — implementado no EA de medicao v1.20, **ainda nao rodado**.
