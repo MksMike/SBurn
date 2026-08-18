@@ -4,7 +4,7 @@
 //| ARQUIVO:  S-EA-Test_ConsistencyGate.mq5                          |
 //| COMPILAR: SIM (F7), DEPOIS dos 2 indicadores e com os 2 includes no lugar|
 //| ASSINATURA no log ao iniciar (prova de identidade):               |
-//|   "S-EA-Test_ConsistencyGate v1.04 inicializado | TF=..."                  |
+//|   "S-EA-Test_ConsistencyGate v1.28 inicializado | TF=..."                  |
 //+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
 //| S-EA-Test_ConsistencyGate.mq5                                     |
@@ -36,6 +36,17 @@
 //|  - Horizontes por TEMPO a partir do relogio de CADA entrada:     |
 //|    5 / 15 / 30 minutos.                                          |
 //|                                                                   |
+//| v1.28: CORRECAO DA ASSINATURA. O #property version dizia          |
+//|   1.27, mas o cabecalho anunciava v1.04 e o Print do OnInit       |
+//|   imprimia v1.07. A assinatura no Diario e' a PROVA DE            |
+//|   IDENTIDADE do build (armadilha 2 do CLAUDE.md): conferir o      |
+//|   log e ler o numero errado e' exatamente o erro que ela          |
+//|   existe para impedir. Nenhuma linha de medicao muda — so' o      |
+//|   que o EA declara sobre si mesmo.                                |
+//|   Para nao repetir: o Print passou a derivar do #define           |
+//|   S_VER, colado no #property version. Restam DUAS linhas a        |
+//|   manter em sincronia, e sao vizinhas, em vez de tres             |
+//|   espalhadas pelo arquivo.                                        |
 //| v1.27: DOIS BUGS corrigidos na compilacao/auditoria:              |
 //|   [1] 'bid' nao declarado no bloco de liquidez — o parametro de    |
 //|       OnSignal se chama 'bidNow'. Erro de compilacao.              |
@@ -325,7 +336,10 @@
 //| CSV (FILE_COMMON): <root>\test_consistgate_<simbolo>_<per>_<data>|
 //+------------------------------------------------------------------+
 #property copyright "MKS-Engine"
-#property version   "1.27"
+#property version   "1.28"
+// A assinatura de runtime deriva DESTE define. Ao subir a versao,
+// mudar as duas linhas juntas — sao vizinhas de proposito.
+#define  S_VER "1.28"
 #property strict
 
 // Nome do indicador vem de INPUT (string), entao o tester nao consegue
@@ -713,7 +727,7 @@ int OnInit()
    ArrayResize(g_mfe15B_pass, 0, 1024);
    ArrayInitialize(g_cnt, 0);
 
-   Print("S-EA-Test_ConsistencyGate v1.07 inicializado | fonte=", EnumToString(InpSigSource),
+   Print("S-EA-Test_ConsistencyGate v" + S_VER + " inicializado | fonte=", EnumToString(InpSigSource),
          " TF=", EnumToString(_Period),
          " horizontes(s)=", HZ_SEC[0], "/", HZ_SEC[1], "/", HZ_SEC[2],
          " SPregime=", EnumToString(InpSPTF),
