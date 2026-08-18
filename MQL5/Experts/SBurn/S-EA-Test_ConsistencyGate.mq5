@@ -36,6 +36,132 @@
 //|  - Horizontes por TEMPO a partir do relogio de CADA entrada:     |
 //|    5 / 15 / 30 minutos.                                          |
 //|                                                                   |
+//| v1.27: DOIS BUGS corrigidos na compilacao/auditoria:              |
+//|   [1] 'bid' nao declarado no bloco de liquidez — o parametro de    |
+//|       OnSignal se chama 'bidNow'. Erro de compilacao.              |
+//|   [2] SILENCIOSO e pior: rec.atrEnt era usado pelo bloco de        |
+//|       liquidez ANTES de ser atribuido (ZeroMemory deixava 0), e    |
+//|       DistNivel devolve 0 quando o ATR e' zero. As cinco colunas   |
+//|       liq_* sairiam TODAS ZERADAS e a analise concluiria "zonas    |
+//|       de liquidez nao separam nada" — conclusao falsa produzida    |
+//|       por bug. Agora atrEnt e' atribuido no inicio do registro.    |
+//| v1.26: CORRECAO DE BUG encontrado na auditoria pre-rodada.        |
+//|   O range R3 (janela deslizante) estava implementado como MAXIMO   |
+//|   CORRENTE desde o scratch, atualizado no mesmo tick em que o      |
+//|   gatilho era testado. Consequencia: excS nunca podia ser MAIOR    |
+//|   que reR3Alto (acabara de receber esse valor), entao o gatilho    |
+//|   R3 NUNCA disparava — coluna morta, sem erro visivel.             |
+//|   Agora R3 e' de fato deslizante: guarda o maximo POR BARRA num    |
+//|   buffer circular de InpReJanela posicoes e o topo e' o maior      |
+//|   valor das barras ANTERIORES (nunca da barra corrente).           |
+//| v1.25: ESTRUTURA DE CALENDARIO — primeira familia realmente nova  |
+//|   desde as zonas de liquidez. NAO e' derivada de preco: mede       |
+//|   POSICAO NO TEMPO. Motivo: ja' medimos que NY e' mais fraca no    |
+//|   ouro (medMFE15B 2.594 contra 3.844 da Asia) e nunca fechamos o   |
+//|   assunto. Abertura carrega eventos estruturais reais — rollover,  |
+//|   gap de fim de semana, transicao de liquidez, fixing de Londres.  |
+//|   Colunas:                                                         |
+//|     cal_dia    minutos desde a virada de dia do SERVIDOR           |
+//|     cal_asia   minutos desde a abertura de Toquio (00:00 srv)      |
+//|     cal_lon    minutos desde a abertura de Londres (08:00 srv)     |
+//|     cal_ny     minutos desde a abertura de Nova York (15:00 srv)   |
+//|     cal_dow    dia da semana (1=seg .. 5=sex)                      |
+//|     cal_1abarra 1 se e' a primeira barra do dia no TF do grafico   |
+//|   As aberturas usam o relogio do SERVIDOR (GMT+2/+3 com horario    |
+//|   de verao) — sao aproximacoes das sessoes, nao horario exato de   |
+//|   bolsa. Ajustar InpSrvAsia/Lon/NY se o servidor mudar de offset.  |
+//|   Hipotese registrada: o efeito, se existir, deve ser de VETO      |
+//|   (nao operar nos primeiros N minutos), pelo mesmo motivo do       |
+//|   filtro de spread — e la' 99% da vantagem NAO era custo, era      |
+//|   condicao de mercado. Conferir se e' duplicata do spread.         |
+//| v1.24: SUPERTREND (M5 e TF de regime) como CONTEXTO.               |
+//|   Motivo: o regime atual (trendDir do SP) e' EMA contra EMA — um   |
+//|   limiar FIXO. O Supertrend usa bandas ATR x multiplicador, ou     |
+//|   seja, ADAPTA o limiar a volatilidade: em periodo calmo vira com  |
+//|   pouco movimento, em periodo agitado exige mais. E' diferenca de  |
+//|   MECANISMO, nao so' de nome — e' o que justifica medir.           |
+//|   Colunas: st_local (TF do grafico), st_regime (InpSPTF),          |
+//|   st_acordo (+1/-1 se os dois concordam, 0 se divergem).           |
+//|   A analise responde as TRES leituras de uma vez, offline:         |
+//|     (a) SUBSTITUTO do regime atual — troca a regua, nao corta      |
+//|         amostra. E' a leitura com mais chance.                     |
+//|     (b) FILTRO ADICIONAL sobre o gatilho — corta amostra; e' o     |
+//|         que o B_CONFLU fez, descartando trades de +$2,86.          |
+//|     (c) GATILHO proprio (virada do Supertrend) — evento de         |
+//|         mudanca de regime, familia enterrada 5 vezes (TMO em 5 TFs,|
+//|         MACROSS com -2.972/trade e 8/8 meses negativos).           |
+//|   NOTA R6: Supertrend NAO e' familia nova de informacao — continua |
+//|   sendo tendencia derivada de preco. O que ele traz e' a adaptacao |
+//|   a volatilidade. Se nao separar nada alem do trendDir, e'         |
+//|   duplicata e sai da fila.                                         |
+//| v1.23: ALTERNATIVAS AO ATR — o ATR e' hoje o UNICO denominador do |
+//|   desenho (stop, gatilho de BE, passo da piramide, distancias de   |
+//|   liquidez). Isso e' ponto unico de falha: se ele distorcer num    |
+//|   regime, tudo distorce junto. Defeitos conhecidos: inclui GAPS    |
+//|   (uma abertura de domingo infla a leitura por 14 barras), e' uma  |
+//|   MEDIA (reage devagar em transicao de regime) e nao distingue     |
+//|   DIRECAO de BAGUNCA (5.000 pts de tendencia limpa e 5.000 pts de  |
+//|   serrote dao o mesmo valor).                                      |
+//|   Estas colunas NAO substituem o ATR — apenas medem em paralelo,   |
+//|   para a analise dizer se alguma mede algo que ele nao mede:       |
+//|     vol_std   desvio-padrao dos retornos (ignora gap)              |
+//|     vol_yz    Yang-Zhang (estimador eficiente com poucas barras)   |
+//|     vol_medr  range MEDIANO (robusto a outlier, ao contrario da    |
+//|               media que o ATR usa)                                 |
+//|     vol_eff   Efficiency Ratio de Kaufman = |deslocamento| /       |
+//|               distancia percorrida. E' matematicamente o mesmo que |
+//|               o MovConsistency do MKS-Engine, que reprovou como    |
+//|               FILTRO DE ENTRADA mas nunca foi testado como         |
+//|               CLASSIFICADOR DE REGIME barra a barra — que e' o uso |
+//|               canonico dele. ~1 = tendencia limpa; ~0 = lateral.   |
+//|   Todas na mesma janela do ATR (InpATRPeriod), em pontos, exceto   |
+//|   vol_eff que e' adimensional (0 a 1).                             |
+//| v1.22: ZONAS DE LIQUIDEZ — a unica familia de informacao que o    |
+//|   projeto nunca tocou. Tudo que medimos ate aqui compara o preco   |
+//|   com ELE MESMO (medias, osciladores, ATR, excursoes). Nada mede   |
+//|   o preco em relacao a NIVEIS ONDE HA ORDENS ACUMULADAS.           |
+//|   Pista que motiva: 83% dos stops acionados estavam na direcao     |
+//|   CERTA — o preco tirou a posicao e depois seguiu o caminho        |
+//|   previsto. Essa e' a assinatura de varredura de liquidez.         |
+//|   Colunas (distancias em ATR, com sinal: + = o nivel esta A FAVOR  |
+//|   da direcao do trade; - = esta CONTRA, ou seja, no caminho):      |
+//|     liq_round  distancia ao numero redondo mais proximo ($10)      |
+//|     liq_r50    distancia ao nivel de $50                           |
+//|     liq_pdh    distancia a maxima do dia anterior                  |
+//|     liq_pdl    distancia a minima do dia anterior                  |
+//|     liq_frac   distancia ao fractal NAO VISITADO mais proximo      |
+//|   Obs: a estrutura de fractais como DIRECAO ja foi medida e        |
+//|   reprovou (est_micro/est_macro). Aqui o fractal e' usado como     |
+//|   NIVEL, que e' outra pergunta.                                    |
+//|   Sao colunas de CONTEXTO: nenhuma filtra nada dentro do EA.       |
+//| v1.21: DUAS SOLUCOES PARA "SURFAR A TENDENCIA", medidas juntas:  |
+//|                                                                    |
+//| (A) PIRAMIDE SIMULTANEA — colunas pir_p<passo>_n<k>.               |
+//|   Motivo: a estrategia participa de 31% do movimento que ela mesma |
+//|   identifica; 36% dos sinais produzem pernas >3 ATR e 60% DESSAS   |
+//|   viram scratch. Adicionar posicao EM CIMA DE TRADE VENCEDOR (o    |
+//|   oposto de grid, que adiciona em cima de perdedor) cria           |
+//|   participacao redundante: quando a perna se desenvolve, ha varias |
+//|   posicoes dentro dela. Cada adicao carrega BE e stop PROPRIOS,    |
+//|   medidos a partir do PROPRIO nivel de entrada.                    |
+//|   Grade: passo {0.5, 1.0} x ATR, ate 5 posicoes.                   |
+//|                                                                    |
+//| (B) REENTRADA POR ESGOTAMENTO — colunas re_*.                      |
+//|   Motivo: apos o scratch, o preco retoma a direcao original em 71% |
+//|   dos casos, mas o fundo do recuo vem 14 barras depois (mediana);  |
+//|   na barra 5, 63% ainda estao caindo. Por isso o rompimento        |
+//|   IMEDIATO do extremo falhou (stop de 20% contra 8%).              |
+//|   Aqui o gatilho e' ESTADO, nao relogio: apos um piso curto de     |
+//|   InpRePiso barras, o EA registra o range formado desde o scratch  |
+//|   e so' reentra quando o preco (i) para de fazer extremo adverso   |
+//|   novo por InpReCalma barras e (ii) rompe o topo do range de       |
+//|   referencia. Tres definicoes de range sao medidas em paralelo:    |
+//|     R1 = N barras ao redor do scratch (fixo)                       |
+//|     R2 = do scratch ate o fundo (congela quando a calma comeca)    |
+//|     R3 = janela deslizante de N barras                             |
+//|   Snapshot no scratch (ATR, estado e posicao do TMO) gravado para  |
+//|   a analise decidir OFFLINE qual confirmador do TMO usa.           |
+//|   TUDO NAO CALIBRADO — a grade decide.                             |
 //| v1.20: ESTRUTURA DE MERCADO (micro e macro) — informacao de uma  |
 //|   familia NOVA: fractais medem MEMORIA DE PRECO (onde o mercado    |
 //|   foi rejeitado), nao media suavizada. Passa no teste da R6.       |
@@ -199,7 +325,7 @@
 //| CSV (FILE_COMMON): <root>\test_consistgate_<simbolo>_<per>_<data>|
 //+------------------------------------------------------------------+
 #property copyright "MKS-Engine"
-#property version   "1.20"
+#property version   "1.27"
 #property strict
 
 // Nome do indicador vem de INPUT (string), entao o tester nao consegue
@@ -269,6 +395,20 @@ input double             InpTrail2       = 4000;   // Distancia de trailing 2, p
 input double             InpTrail3       = 8000;   // Distancia de trailing 3, pts
 input double             InpTrail4       = 16000;  // Distancia de trailing 4, pts
 
+input group "=== Calendario / sessoes (hora do SERVIDOR) ==="
+input int                InpSrvAsia      = 0;     // Abertura Asia, hora do servidor
+input int                InpSrvLon       = 8;     // Abertura Londres, hora do servidor
+input int                InpSrvNY        = 15;    // Abertura Nova York, hora do servidor
+
+input group "=== Supertrend (contexto, medido em paralelo) ==="
+input int                InpStPeriod     = 10;    // Periodo do ATR do Supertrend
+input double             InpStMult       = 3.0;   // Multiplicador das bandas
+input int                InpStBarras     = 300;   // Barras para estabilizar a recorrencia
+
+input group "=== Zonas de liquidez ==="
+input double             InpLiqRound     = 10.0;  // Passo do numero redondo, em unidades do preco
+input double             InpLiqRound2    = 50.0;  // Segundo passo (nivel maior)
+
 input group "=== Estrutura de mercado (fractais) ==="
 input int                InpEstBarras    = 120;   // Quantas barras varrer p/ achar 2 fractais
 
@@ -276,6 +416,17 @@ input group "=== Pullback raso (SIG_PBSHALLOW) — GRADE, NAO CALIBRADA ==="
 input int                InpPbMin        = 1;     // Min de barras de recuo
 input int                InpPbMax        = 4;     // Max de barras de recuo
 input int                InpPbCool       = 3;     // Cooldown entre sinais, barras
+
+input group "=== Piramide simultanea (GRADE, x ATR) ==="
+input double             InpPirPasso1    = 0.50;  // Passo entre adicoes 1, x ATR
+input double             InpPirPasso2    = 1.00;  // Passo entre adicoes 2, x ATR
+input int                InpPirMax       = 5;     // Maximo de posicoes por sinal
+
+input group "=== Reentrada por esgotamento (GRADE) ==="
+input int                InpRePiso       = 5;     // Piso: barras minimas apos o scratch
+input int                InpReCalma      = 3;     // Barras sem novo extremo adverso = calma
+input int                InpReJanela     = 10;    // Barras do range R1/R3
+input int                InpReValidade   = 120;   // Validade do monitoramento, barras
 
 input group "=== Contra-trade pos-breakeven (GRADE, x ATR) ==="
 input double             InpCtrArmATR    = 0.73;  // BE considerado armado em, x ATR
@@ -306,6 +457,8 @@ input string             InpProjectRoot  = "SBurn";
 int HZ_SEC[N_HZ];   // 5/15/30 BARRAS do TF do grafico (definido no OnInit)
 
 int      g_hTMO = INVALID_HANDLE;
+int      g_hStLocal = INVALID_HANDLE;   // ATR do Supertrend, TF do grafico [v1.24]
+int      g_hStReg   = INVALID_HANDLE;   // ATR do Supertrend, TF de regime
 int      g_hSP    = INVALID_HANDLE;  // SP no TF de direcao (regime, buffer 27)
 int      g_hSPsig = INVALID_HANDLE;  // SP no TF do grafico (gatilho, buffer 26)
 int      g_hSig   = INVALID_HANDLE;  // handle efetivo da fonte de sinal
@@ -319,6 +472,7 @@ int      g_ps  = 300;         // segundos por barra do TF do grafico
 double   g_trailD[4];         // grade de distancias de trailing
 double   g_beArm[3], g_beLvl[3];   // grade da escada de degrau fixo [v1.16]
 double   g_ctTgt[4], g_ctStop[3];  // grade do contra-trade [v1.18]
+double   g_pirPasso[2];            // grade da piramide [v1.21]
 #define  TR_NAO_SAIU -999999.0
 string   g_csvPath;
 
@@ -349,6 +503,10 @@ struct GateRec
    // localizacao do pullback no TF do grafico [v1.09]
    int      spTrendTF;        // tendencia do SP no TF do grafico (+1/-1/0)
    int      estMicro;         // estrutura de fractais no TF do grafico [v1.20]
+   double   liqRound, liqR50, liqPdh, liqPdl, liqFrac;   // zonas de liquidez [v1.22]
+   double   volStd, volYz, volMedr, volEff;              // alternativas ao ATR [v1.23]
+   int      stLocal, stRegime;                           // Supertrend [v1.24]
+   int      calDia, calAsia, calLon, calNY, calDow, cal1a; // calendario [v1.25]
    int      estMacro;         // estrutura de fractais no InpSPTF
    int      bsBelow;          // barras desde haClose < centro do canal
    int      bsAbove;          // barras desde haClose > centro do canal
@@ -359,6 +517,34 @@ struct GateRec
    double   ret[5];           // resultado no fecho das barras 1,2,3,5,8 (pts, direcional)
    bool     retDone[5];
    double   sigHigh, sigLow;  // extremos da barra de sinal (p/ simular entrada stop)
+   // (A) piramide simultanea: 2 passos x 5 posicoes [v1.21]
+   //     cada adicao k entra a k*passo*ATR da entrada original, com BE e stop
+   //     medidos do PROPRIO nivel. pirOut = P&L de saida, ou sentinela.
+   bool     pirAberta[10];    // [passo*5 + k] a adicao chegou a abrir?
+   double   pirEnt[10];       // nivel de entrada (excursao, em pontos)
+   double   pirFav[10];       // maior excursao favoravel DESDE a entrada dela
+   bool     pirArm[10];       // BE armado?
+   double   pirOut[10];       // nivel de saida, ou TR_NAO_SAIU
+
+   // (B) reentrada por esgotamento [v1.21]
+   double   reAtrSnap;        // ATR no momento do scratch
+   double   reTmoMain;        // main do TMO no scratch
+   double   reTmoHist;        // main-signal no scratch
+   int      reTmoEstado;      // estado do TMO no scratch (+1/-1/0)
+   double   reR1Alto, reR1Baixo;   // range fixo: InpReJanela barras ao redor
+   double   reR2Alto, reR2Baixo;   // range do scratch ate a calma
+   double   reR3Alto, reR3Baixo;   // janela deslizante (max das barras anteriores)
+   double   reWin[32];             // buffer circular: maximo por barra [v1.26]
+   int      reWinBarra;            // ultima barra registrada no buffer
+   double   rePiorAdv;        // pior excursao adversa desde o scratch
+   double   reMaxDesde;       // maior excursao favoravel desde o scratch
+   int      reBarraPior;      // barra em que ela ocorreu
+   int      reCalmaDesde;     // barra em que comecou a calma (0 = ainda nao)
+   int      reGatilho[3];     // barra do rompimento p/ R1,R2,R3 (0 = nao houve)
+   double   reEnt[3];         // nivel de entrada da reentrada
+   double   reOut[3];         // P&L de saida da reentrada, ou sentinela
+   bool     reArm[3];         // BE da reentrada armado
+   double   reFav[3];         // favoravel desde a reentrada
    // contra-trade pos-breakeven [v1.17]
    bool     beHit;            // o BE teria sido atingido?
    double   bidBE;            // BID no momento do scratch (entrada do contra-trade)
@@ -451,6 +637,7 @@ int OnInit()
    g_ctTgt[0] = InpCtrTgt1; g_ctTgt[1] = InpCtrTgt2;
    g_ctTgt[2] = InpCtrTgt3; g_ctTgt[3] = InpCtrTgt4;
    g_ctStop[0] = InpCtrStop1; g_ctStop[1] = InpCtrStop2; g_ctStop[2] = InpCtrStop3;
+   g_pirPasso[0] = InpPirPasso1; g_pirPasso[1] = InpPirPasso2;
    HZ_SEC[0] = 5  * ps;
    HZ_SEC[1] = 15 * ps;
    HZ_SEC[2] = 30 * ps;
@@ -485,6 +672,12 @@ int OnInit()
    //--- fonte do sinal: TMO (default) ou SP no TF do grafico [v1.07]
    g_hSig = (InpSigSource == SIG_SP) ? g_hSPsig : g_hTMO;
 
+   //--- [v1.24] handles de ATR para o Supertrend (um por timeframe)
+   g_hStLocal = iATR(_Symbol, PERIOD_CURRENT, InpStPeriod);
+   g_hStReg   = iATR(_Symbol, InpSPTF,        InpStPeriod);
+   if(g_hStLocal == INVALID_HANDLE || g_hStReg == INVALID_HANDLE)
+   { Print("Falha ao criar handles de ATR do Supertrend"); return INIT_FAILED; }
+
    g_gate.Init(InpWindowTicks, g_point, InpMinConsist, InpRequireAlign,
                (ulong)InpTimeoutSec * 1000);
 
@@ -502,7 +695,7 @@ int OnInit()
       "mfe5_A;mae5_A;mfe15_A;mae15_A;mfe30_A;mae30_A;"
       "mfe5_B;mae5_B;mfe15_B;mae15_B;mfe30_B;mae30_B;"
       "state2;state3;conflu;exhaust;sp_trend;m1_cross;hist_cross;"
-      "sp_trend_tf;est_micro;est_macro;est_acordo;bs_below;bs_above;zpos;pac_w;cyc_bars;cyc_mfe;cyc_mae;"
+      "sp_trend_tf;est_micro;est_macro;est_acordo;liq_round;liq_r50;liq_pdh;liq_pdl;liq_frac;vol_std;vol_yz;vol_medr;vol_eff;st_local;st_regime;st_acordo;cal_dia;cal_asia;cal_lon;cal_ny;cal_dow;cal_1abarra;bs_below;bs_above;zpos;pac_w;cyc_bars;cyc_mfe;cyc_mae;"
       "ret1;ret2;ret3;ret5;ret8;sig_high;sig_low;"
       "mae_pre;mfe_pre;t_mfe;t_mae;"
       "cp_mfe_1;cp_mae_1;cp_mfe_2;cp_mae_2;cp_mfe_3;cp_mae_3;cp_mfe_5;cp_mae_5;"
@@ -511,7 +704,10 @@ int OnInit()
       "be_a1l1;be_a1l2;be_a1l3;be_a2l1;be_a2l2;be_a2l3;"
       "be_a3l1;be_a3l2;be_a3l3;"
       "be_hit;t_be;"
-      "ct_1;ct_2;ct_3;ct_4;ct_5;ct_6;ct_7;ct_8;ct_9;ct_10;ct_11;ct_12\n");
+      "ct_1;ct_2;ct_3;ct_4;ct_5;ct_6;ct_7;ct_8;ct_9;ct_10;ct_11;ct_12;"
+      "pir_a0;pir_a1;pir_a2;pir_a3;pir_a4;pir_b0;pir_b1;pir_b2;pir_b3;pir_b4;"
+      "re_atr;re_tmo_main;re_tmo_hist;re_tmo_est;re_pior;re_calma;"
+      "re_g1;re_o1;re_g2;re_o2;re_g3;re_o3\n");
 
    ArrayResize(g_recs, 0, 64);
    ArrayResize(g_mfe15B_pass, 0, 1024);
@@ -579,6 +775,164 @@ int SinalMACross(const int handle)
    if(abaixoAgora && !abaixoAntes) return -1;
    return 0;
 }
+
+//+------------------------------------------------------------------+
+//| [v1.24] Estado do Supertrend num timeframe. Retorna +1 (alta),    |
+//| -1 (baixa) ou 0 (indefinido/sem dados).                           |
+//| Recorrencia classica: banda superior/inferior a partir da media    |
+//| high/low +- mult*ATR, com "trava" (a banda so' aperta, nunca       |
+//| afrouxa enquanto o lado nao vira). Le apenas BARRAS FECHADAS       |
+//| (shift 1 em diante) — zero lookahead.                              |
+//+------------------------------------------------------------------+
+int SupertrendEstado(const ENUM_TIMEFRAMES tf, const int handleAtr)
+{
+   int n = InpStBarras;
+   if(Bars(_Symbol, tf) < n + 5) n = Bars(_Symbol, tf) - 5;
+   if(n < InpStPeriod + 10) return 0;
+
+   double h[], l[], c[], a[];
+   ArraySetAsSeries(h, false); ArraySetAsSeries(l, false);
+   ArraySetAsSeries(c, false); ArraySetAsSeries(a, false);
+   // shift 1 = ultima barra FECHADA; ordem cronologica p/ a recorrencia
+   if(CopyHigh (_Symbol, tf, 1, n, h) < n) return 0;
+   if(CopyLow  (_Symbol, tf, 1, n, l) < n) return 0;
+   if(CopyClose(_Symbol, tf, 1, n, c) < n) return 0;
+   if(CopyBuffer(handleAtr, 0, 1, n, a) < n) return 0;
+
+   double supPrev = 0.0, infPrev = 0.0;
+   int trend = 1;
+   for(int i = 0; i < n; i++)
+   {
+      if(a[i] <= 0.0) continue;
+      double med = (h[i] + l[i]) / 2.0;
+      double supBas = med + InpStMult * a[i];
+      double infBas = med - InpStMult * a[i];
+      double sup, inf;
+      if(i == 0) { sup = supBas; inf = infBas; trend = (c[i] > infBas) ? 1 : -1; }
+      else
+      {
+         // a banda so' aperta enquanto o preco nao a rompe
+         sup = (supBas < supPrev || c[i-1] > supPrev) ? supBas : supPrev;
+         inf = (infBas > infPrev || c[i-1] < infPrev) ? infBas : infPrev;
+         if(trend == -1 && c[i] > supPrev)      trend = 1;
+         else if(trend == 1 && c[i] < infPrev)  trend = -1;
+      }
+      supPrev = sup; infPrev = inf;
+   }
+   return trend;
+}
+
+//+------------------------------------------------------------------+
+//| [v1.23] Alternativas ao ATR, calculadas na mesma janela.          |
+//| Preenche: desvio-padrao dos retornos, Yang-Zhang, range mediano   |
+//| e Efficiency Ratio. Retorna false se nao houver barras suficientes|
+//+------------------------------------------------------------------+
+bool VolAlternativas(const int n, double &vstd, double &vyz, double &vmed, double &veff)
+{
+   vstd = 0; vyz = 0; vmed = 0; veff = 0;
+   if(n < 3) return false;
+   int need = n + 1;
+   double o[], h[], l[], c[];
+   ArraySetAsSeries(o, true); ArraySetAsSeries(h, true);
+   ArraySetAsSeries(l, true); ArraySetAsSeries(c, true);
+   if(CopyOpen (_Symbol, PERIOD_CURRENT, 1, need, o) < need) return false;
+   if(CopyHigh (_Symbol, PERIOD_CURRENT, 1, need, h) < need) return false;
+   if(CopyLow  (_Symbol, PERIOD_CURRENT, 1, need, l) < need) return false;
+   if(CopyClose(_Symbol, PERIOD_CURRENT, 1, need, c) < need) return false;
+
+   //--- desvio-padrao dos retornos fecho-a-fecho (NAO inclui gap de abertura)
+   double soma = 0, soma2 = 0;
+   for(int i = 0; i < n; i++)
+   {
+      double r = (c[i] - c[i+1]) / g_point;
+      soma += r; soma2 += r * r;
+   }
+   double media = soma / n;
+   vstd = MathSqrt(MathMax(0.0, soma2 / n - media * media));
+
+   //--- Yang-Zhang simplificado: overnight + Rogers-Satchell
+   double so = 0, srs = 0;
+   for(int i = 0; i < n; i++)
+   {
+      double ro = MathLog(o[i] / c[i+1]);                       // salto de abertura
+      so += ro * ro;
+      double rs = MathLog(h[i]/c[i]) * MathLog(h[i]/o[i])
+                + MathLog(l[i]/c[i]) * MathLog(l[i]/o[i]);      // Rogers-Satchell
+      srs += rs;
+   }
+   vyz = MathSqrt(MathMax(0.0, so / n + srs / n)) * c[0] / g_point;
+
+   //--- range MEDIANO das barras (robusto; o ATR usa media)
+   double rng[];
+   ArrayResize(rng, n);
+   for(int i = 0; i < n; i++) rng[i] = (h[i] - l[i]) / g_point;
+   ArraySort(rng);
+   vmed = (n % 2 == 1) ? rng[n/2] : 0.5 * (rng[n/2 - 1] + rng[n/2]);
+
+   //--- Efficiency Ratio: |deslocamento liquido| / distancia percorrida
+   double desloc = MathAbs(c[0] - c[n]) / g_point;
+   double dist = 0;
+   for(int i = 0; i < n; i++) dist += MathAbs(c[i] - c[i+1]) / g_point;
+   veff = (dist > 0) ? desloc / dist : 0.0;
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| [v1.22] Distancia com SINAL ate um nivel, em ATR.                 |
+//| Positivo = o nivel esta A FAVOR do trade (o preco caminha p/ ele  |
+//| e ele e' alvo). Negativo = esta CONTRA (ficou para tras).         |
+//| Retorna 0 se o nivel nao existir.                                 |
+//+------------------------------------------------------------------+
+double DistNivel(const double nivel, const double preco, const int dir, const double atrPts)
+{
+   if(nivel <= 0.0 || atrPts <= 0.0) return 0.0;
+   return ((nivel - preco) / g_point * dir) / atrPts;
+}
+
+//+------------------------------------------------------------------+
+//| [v1.22] Numero redondo mais proximo ACIMA e ABAIXO do preco.      |
+//| Devolve o que esta na direcao do trade (o proximo alvo natural).  |
+//+------------------------------------------------------------------+
+double RedondoAdiante(const double preco, const int dir, const double passo)
+{
+   if(passo <= 0.0) return 0.0;
+   double base = MathFloor(preco / passo) * passo;
+   return (dir > 0) ? base + passo : base;
+}
+
+//+------------------------------------------------------------------+
+//| [v1.22] Fractal NAO VISITADO mais proximo na direcao do trade.    |
+//| Varre para tras procurando o primeiro fractal de topo (compra) ou |
+//| de fundo (venda) que o preco ainda NAO tocou desde que se formou. |
+//| E' o nivel onde stops tendem a se acumular.                       |
+//+------------------------------------------------------------------+
+double FractalNaoVisitado(const int handle, const int dir, const int maxBarras)
+{
+   double v[1];
+   int buf = (dir > 0) ? 8 : 9;          // 8 = topo, 9 = fundo
+   double extremo = 0.0;                 // maior high (ou menor low) ja visto varrendo
+   for(int sh = 1; sh <= maxBarras; sh++)
+   {
+      double hi = iHigh(_Symbol, PERIOD_CURRENT, sh);
+      double lo = iLow(_Symbol, PERIOD_CURRENT, sh);
+      if(CopyBuffer(handle, buf, sh, 1, v) == 1 && v[0] != EMPTY_VALUE && v[0] > 0)
+      {
+         // nao visitado = o preco nao voltou a este nivel depois que ele se formou
+         if(dir > 0 && v[0] > extremo) return v[0];
+         if(dir < 0 && (extremo == 0.0 || v[0] < extremo)) return v[0];
+      }
+      if(dir > 0) { if(hi > extremo) extremo = hi; }
+      else        { if(extremo == 0.0 || lo < extremo) extremo = lo; }
+   }
+   return 0.0;
+}
+
+//+------------------------------------------------------------------+
+//| [v1.21] Gatilho de breakeven usado pela piramide e pela reentrada:|
+//| o MESMO 0.73 x ATR do titular, para os resultados serem           |
+//| comparaveis. Nao e' parametro novo — e' o valor ja' medido.       |
+//+------------------------------------------------------------------+
+double ArmPtsPir(const double atrPts) { return 0.73 * atrPts; }
 
 //+------------------------------------------------------------------+
 //| [v1.20] Estrutura de mercado a partir dos fractais do SP.         |
@@ -705,6 +1059,8 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
    rec.priceA       = bidNow;
    rec.spreadSigPts = SpreadPts();
    rec.status       = (int)GATE_COLLECTING;
+   // [v1.27] ATR primeiro: liquidez, piramide, escada e reentrada dependem dele
+   rec.atrEnt       = ReadCtxD(g_hTMO, 16) / g_point;
    // contexto de regime no momento do sinal (hipotese do filtro de contexto)
    rec.state2       = ReadCtx(g_hTMO, 12);   // estado TMO no TF2 (+1/-1)
    rec.state3       = ReadCtx(g_hTMO, 13);   // estado TMO no TF3 (+1/-1)
@@ -717,6 +1073,38 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
    // localizacao do pullback (SP do TF do grafico, shift 1) [v1.09]
    rec.spTrendTF    = ReadCtx(g_hSPsig, 27);
    rec.estMicro     = EstruturaMercado(g_hSPsig, InpEstBarras);   // [v1.20]
+   // [v1.22] zonas de liquidez, todas em ATR e com sinal
+   {
+      double pr = bidNow, at = rec.atrEnt;
+      rec.liqRound = DistNivel(RedondoAdiante(pr, dir, InpLiqRound),  pr, dir, at);
+      rec.liqR50   = DistNivel(RedondoAdiante(pr, dir, InpLiqRound2), pr, dir, at);
+      double pdh = iHigh(_Symbol, PERIOD_D1, 1);
+      double pdl = iLow (_Symbol, PERIOD_D1, 1);
+      rec.liqPdh   = DistNivel(pdh, pr, dir, at);
+      rec.liqPdl   = DistNivel(pdl, pr, dir, at);
+      rec.liqFrac  = DistNivel(FractalNaoVisitado(g_hSPsig, dir, InpEstBarras), pr, dir, at);
+   }
+   // [v1.23] alternativas ao ATR, medidas em paralelo (nao substituem nada)
+   VolAlternativas(InpATRPeriod, rec.volStd, rec.volYz, rec.volMedr, rec.volEff);
+   // [v1.24] Supertrend nos dois timeframes
+   rec.stLocal  = SupertrendEstado(PERIOD_CURRENT, g_hStLocal);
+   rec.stRegime = SupertrendEstado(InpSPTF,        g_hStReg);
+   // [v1.25] posicao no tempo (relogio do servidor)
+   {
+      MqlDateTime dt;
+      TimeToStruct(TimeCurrent(), dt);
+      int agora = dt.hour * 60 + dt.min;
+      rec.calDia  = agora;                                   // desde 00:00 do servidor
+      rec.calAsia = (agora - InpSrvAsia * 60 + 1440) % 1440;
+      rec.calLon  = (agora - InpSrvLon  * 60 + 1440) % 1440;
+      rec.calNY   = (agora - InpSrvNY   * 60 + 1440) % 1440;
+      rec.calDow  = dt.day_of_week;
+      // primeira barra do dia no TF do grafico: a barra anterior era de outro dia
+      MqlDateTime d0, d1;
+      TimeToStruct(iTime(_Symbol, PERIOD_CURRENT, 1), d0);
+      TimeToStruct(iTime(_Symbol, PERIOD_CURRENT, 2), d1);
+      rec.cal1a = (d0.day != d1.day) ? 1 : 0;
+   }
    rec.estMacro     = EstruturaMercado(g_hSP,    InpEstBarras);
    rec.bsBelow      = ReadCtx(g_hSPsig, 24);
    rec.bsAbove      = ReadCtx(g_hSPsig, 25);
@@ -735,8 +1123,7 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
    rec.maePre = 0.0; rec.mfePre = 0.0; rec.tMfe = 0; rec.tMae = 0;   // [v1.14]
    for(int tt = 0; tt < 4; tt++)                                     // [v1.15]
    { rec.trStop[tt] = -InpSimStop; rec.trOut[tt] = TR_NAO_SAIU; }
-   rec.atrEnt = ReadCtxD(g_hTMO, 16) / g_point;
-   // [v1.16] escada em pontos, congelada com o ATR da entrada
+   // [v1.16] escada em pontos, congelada com o ATR da entrada (atrEnt ja' lido)
    double atrOk = (rec.atrEnt > 0.0) ? rec.atrEnt : 1.0;
    for(int aa = 0; aa < 3; aa++)
    {
@@ -746,6 +1133,20 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
    for(int bb = 0; bb < 9; bb++)
    { rec.beStop[bb] = -InpSimStopATR * atrOk; rec.beOut[bb] = TR_NAO_SAIU; }
    rec.beHit = false; rec.bidBE = 0.0; rec.tBE = 0;                    // [v1.17]
+   for(int pk = 0; pk < 10; pk++)                                      // [v1.21] piramide
+   {
+      rec.pirAberta[pk] = (pk % 5 == 0);          // k=0 e' a posicao original
+      rec.pirEnt[pk] = 0.0; rec.pirFav[pk] = 0.0;
+      rec.pirArm[pk] = false; rec.pirOut[pk] = TR_NAO_SAIU;
+   }
+   rec.reAtrSnap = 0; rec.reTmoMain = 0; rec.reTmoHist = 0; rec.reTmoEstado = 0;
+   rec.reR1Alto = 0; rec.reR1Baixo = 0; rec.reR2Alto = 0; rec.reR2Baixo = 0;
+   rec.reR3Alto = 0; rec.reR3Baixo = 0;
+   for(int wk = 0; wk < 32; wk++) rec.reWin[wk] = -DBL_MAX;   // [v1.26]
+   rec.reWinBarra = -1;
+   rec.rePiorAdv = 0; rec.reMaxDesde = 0; rec.reBarraPior = 0; rec.reCalmaDesde = 0;
+   for(int rk = 0; rk < 3; rk++)
+   { rec.reGatilho[rk] = 0; rec.reEnt[rk] = 0; rec.reOut[rk] = TR_NAO_SAIU; rec.reArm[rk] = false; rec.reFav[rk] = 0; }
    rec.ctArmPts = InpCtrArmATR * atrOk;
    for(int cx = 0; cx < 12; cx++) rec.ctOut[cx] = TR_NAO_SAIU;
    for(int cc = 0; cc < 8; cc++) { rec.cpMfe[cc] = 0.0; rec.cpMae[cc] = 0.0; rec.cpDone[cc] = false; }
@@ -791,6 +1192,16 @@ void WriteRec(const GateRec &r)
            ";" + IntegerToString(r.spTrendTF) +
            ";" + IntegerToString(r.estMicro) + ";" + IntegerToString(r.estMacro) +
            ";" + IntegerToString((r.estMicro != 0 && r.estMicro == r.estMacro) ? r.estMicro : 0) +
+           ";" + DoubleToString(r.liqRound, 3) + ";" + DoubleToString(r.liqR50, 3) +
+           ";" + DoubleToString(r.liqPdh, 3)   + ";" + DoubleToString(r.liqPdl, 3) +
+           ";" + DoubleToString(r.liqFrac, 3) +
+           ";" + DoubleToString(r.volStd, 1)  + ";" + DoubleToString(r.volYz, 1) +
+           ";" + DoubleToString(r.volMedr, 1) + ";" + DoubleToString(r.volEff, 4) +
+           ";" + IntegerToString(r.stLocal) + ";" + IntegerToString(r.stRegime) +
+           ";" + IntegerToString((r.stLocal != 0 && r.stLocal == r.stRegime) ? r.stLocal : 0) +
+           ";" + IntegerToString(r.calDia)  + ";" + IntegerToString(r.calAsia) +
+           ";" + IntegerToString(r.calLon)  + ";" + IntegerToString(r.calNY) +
+           ";" + IntegerToString(r.calDow)  + ";" + IntegerToString(r.cal1a) +
            ";" + IntegerToString(r.bsBelow) +
            ";" + IntegerToString(r.bsAbove) + ";" + DoubleToString(r.zpos, 3) +
            ";" + DoubleToString(r.pacW, 1) +
@@ -811,6 +1222,16 @@ void WriteRec(const GateRec &r)
    line += ";" + IntegerToString(r.beHit ? 1 : 0) + ";" + IntegerToString(r.tBE);
    for(int cx = 0; cx < 12; cx++)
       line += ";" + DoubleToString(r.ctOut[cx], 1);
+   for(int pk = 0; pk < 10; pk++)                       // [v1.21] piramide
+      line += ";" + DoubleToString(r.pirAberta[pk] ? r.pirOut[pk] : TR_NAO_SAIU, 1);
+   line += ";" + DoubleToString(r.reAtrSnap, 1) +       // [v1.21] snapshot
+           ";" + DoubleToString(r.reTmoMain, 3) +
+           ";" + DoubleToString(r.reTmoHist, 3) +
+           ";" + IntegerToString(r.reTmoEstado) +
+           ";" + DoubleToString(r.rePiorAdv, 1) +
+           ";" + IntegerToString(r.reCalmaDesde);
+   for(int rk = 0; rk < 3; rk++)                        // [v1.21] reentrada
+      line += ";" + IntegerToString(r.reGatilho[rk]) + ";" + DoubleToString(r.reOut[rk], 1);
    FileWriteString(g_csv, line + "\n");
    g_written++;
 
@@ -957,12 +1378,101 @@ void OnTick()
          rec.tMae   = (int)((now - rec.tBar0) / g_ps);
       }
 
+      // ================= [v1.21] (A) PIRAMIDE SIMULTANEA =================
+      // adicao k entra quando a excursao favoravel atinge k*passo*ATR.
+      // cada uma tem BE no PROPRIO nivel de entrada e stop 3.67 ATR dela.
+      if(rec.atrEnt > 0.0)
+      {
+         double atrP = rec.atrEnt;
+         for(int pp = 0; pp < 2; pp++)
+            for(int k = 0; k < InpPirMax && k < 5; k++)
+            {
+               int ix = pp * 5 + k;
+               double nivel = k * g_pirPasso[pp] * atrP;      // excursao de entrada
+               if(!rec.pirAberta[ix])
+               {
+                  if(exc >= nivel)                            // atingiu o nivel: abre
+                  { rec.pirAberta[ix] = true; rec.pirEnt[ix] = nivel; rec.pirFav[ix] = 0.0; }
+                  else continue;
+               }
+               if(rec.pirOut[ix] != TR_NAO_SAIU) continue;    // ja saiu
+               double excK = exc - rec.pirEnt[ix];            // excursao DESTA posicao
+               if(excK > rec.pirFav[ix]) rec.pirFav[ix] = excK;
+               if(!rec.pirArm[ix] && rec.pirFav[ix] >= ArmPtsPir(atrP)) rec.pirArm[ix] = true;
+               if(rec.pirArm[ix] && excK <= 0.0)              // BE no proprio nivel
+                  rec.pirOut[ix] = 0.0;
+               else if(!rec.pirArm[ix] && excK <= -InpSimStopATR * atrP)
+                  rec.pirOut[ix] = -InpSimStopATR * atrP;     // stop proprio
+            }
+      }
+
+      // ================= [v1.21] (B) REENTRADA POR ESGOTAMENTO ============
+      if(rec.beHit && rec.atrEnt > 0.0)
+      {
+         int bAgora = (int)((now - rec.tBar0) / g_ps);
+         int desdeScratch = bAgora - rec.tBE;
+         double excS = (bid - rec.bidBE) / g_point * rec.dir;   // excursao desde o scratch
+
+         // acompanha o pior adverso e detecta a "calma"
+         if(-excS > rec.rePiorAdv)
+         { rec.rePiorAdv = -excS; rec.reBarraPior = bAgora; rec.reCalmaDesde = 0; }
+         else if(rec.reCalmaDesde == 0 && bAgora - rec.reBarraPior >= InpReCalma)
+         {
+            rec.reCalmaDesde = bAgora;
+            rec.reR2Alto = rec.reMaxDesde;      // congela R2 quando a calma comeca
+            rec.reR2Baixo = -rec.rePiorAdv;
+         }
+         if(excS > rec.reMaxDesde) rec.reMaxDesde = excS;
+         if(desdeScratch <= InpReJanela && excS > rec.reR1Alto) rec.reR1Alto = excS;  // R1 fixo
+         // [v1.26] R3 deslizante: maximo por barra num buffer circular; o topo
+         // considerado e' o das barras ANTERIORES, nunca o da barra corrente —
+         // era esse o bug que impedia o gatilho de disparar.
+         if(desdeScratch >= 0)
+         {
+            int jan = (InpReJanela < 32) ? InpReJanela : 32;
+            if(jan < 2) jan = 2;
+            int slot = desdeScratch % jan;
+            if(rec.reWinBarra != desdeScratch)         // barra nova: limpa o slot
+            { rec.reWin[slot] = excS; rec.reWinBarra = desdeScratch; }
+            else if(excS > rec.reWin[slot]) rec.reWin[slot] = excS;
+            double topo3 = -DBL_MAX;
+            for(int wk = 0; wk < jan; wk++)
+               if(wk != slot && rec.reWin[wk] > topo3) topo3 = rec.reWin[wk];
+            rec.reR3Alto = (topo3 == -DBL_MAX) ? 0.0 : topo3;
+         }
+
+         // gatilho: piso cumprido, calma detectada, e rompe o topo do range
+         if(desdeScratch >= InpRePiso && rec.reCalmaDesde > 0 && desdeScratch <= InpReValidade)
+         {
+            double topo[3];
+            topo[0] = rec.reR1Alto; topo[1] = rec.reR2Alto; topo[2] = rec.reR3Alto;
+            for(int rk = 0; rk < 3; rk++)
+            {
+               if(rec.reGatilho[rk] == 0 && excS > topo[rk] && topo[rk] != 0.0)
+               { rec.reGatilho[rk] = bAgora; rec.reEnt[rk] = excS; rec.reFav[rk] = 0.0; }
+               if(rec.reGatilho[rk] == 0 || rec.reOut[rk] != TR_NAO_SAIU) continue;
+               double excR = excS - rec.reEnt[rk];
+               if(excR > rec.reFav[rk]) rec.reFav[rk] = excR;
+               if(!rec.reArm[rk] && rec.reFav[rk] >= ArmPtsPir(rec.atrEnt)) rec.reArm[rk] = true;
+               if(rec.reArm[rk] && excR <= 0.0) rec.reOut[rk] = 0.0;
+               else if(!rec.reArm[rk] && excR <= -InpSimStopATR * rec.atrEnt)
+                  rec.reOut[rk] = -InpSimStopATR * rec.atrEnt;
+            }
+         }
+      }
+
       // [v1.17] contra-trade: marca o scratch e simula alvo x stop ao contrario
       if(!rec.beHit && rec.favA >= rec.ctArmPts && exc <= 0.0)
       {
          rec.beHit = true;
          rec.bidBE = bid;
          rec.tBE   = (int)((now - rec.tBar0) / g_ps);
+         // [v1.21] snapshot do momento do scratch, p/ a analise decidir offline
+         rec.reAtrSnap  = ReadCtxD(g_hTMO, 16) / g_point;
+         rec.reTmoMain  = ReadCtxD(g_hTMO, 0);
+         rec.reTmoHist  = rec.reTmoMain - ReadCtxD(g_hTMO, 2);
+         rec.reTmoEstado= ReadCtx(g_hTMO, 11);
+         rec.reBarraPior= rec.tBE;
       }
       if(rec.beHit && rec.atrEnt > 0.0)
       {
@@ -1077,6 +1587,8 @@ void OnDeinit(const int reason)
    if(g_hTMO != INVALID_HANDLE) { IndicatorRelease(g_hTMO); g_hTMO = INVALID_HANDLE; }
    if(g_hSP    != INVALID_HANDLE) { IndicatorRelease(g_hSP);    g_hSP    = INVALID_HANDLE; }
    if(g_hSPsig != INVALID_HANDLE) { IndicatorRelease(g_hSPsig); g_hSPsig = INVALID_HANDLE; }
+   if(g_hStLocal != INVALID_HANDLE) { IndicatorRelease(g_hStLocal); g_hStLocal = INVALID_HANDLE; }
+   if(g_hStReg   != INVALID_HANDLE) { IndicatorRelease(g_hStReg);   g_hStReg   = INVALID_HANDLE; }
    Print("CSV (Common\\Files): ", g_csvPath);
 }
 //+------------------------------------------------------------------+
