@@ -41,11 +41,16 @@
   // Apontar para MQL5\Include produz:
   //   error 106: file 'Include\Include\Trade\Trade.mqh' not found
   //
+  // O valor abaixo e' o ALIAS C:\MT5\Exness - junction para a pasta de
+  // dados do terminal, criada uma vez por maquina (ver docs\S-Doc-Maquinas.md).
+  // Nao usar o caminho real: ele carrega o nome do perfil do Windows, que
+  // muda de PC para PC, e este arquivo e' versionado.
+  //
   // A task de build (tasks.json) nao depende disto - ela ja' esta' medida
   // e funcionando. Se o Ctrl+F7 falhar a resolver includes, o valor abaixo
   // e' o primeiro suspeito.
   // ------------------------------------------------------------------
   "mql_tools.Metaeditor.Metaeditor5Dir": "C:\\Program Files\\MetaTrader 5 EXNESS\\metaeditor64.exe",
-  "mql_tools.Metaeditor.Include5Dir": "C:\\Users\\mikem\\AppData\\Roaming\\MetaQuotes\\Terminal\\53785E099C927DB68A545C249CDBCE06\\MQL5",
+  "mql_tools.Metaeditor.Include5Dir": "C:\\MT5\\Exness\\MQL5",
   "mql_tools.LogFile.DeleteLog": "False"
 }

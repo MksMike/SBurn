@@ -9,7 +9,10 @@
   // arquivo - nao ha' copia nem segunda versao.
   //
   // /inc aponta para a pasta MQL5 do terminal, necessaria para resolver
-  // #include <SBurn/...> e #include <Trade\Trade.mqh>.
+  // #include <SBurn/...> e #include <Trade\Trade.mqh>. Usa o alias
+  // C:\MT5\Exness (junction por maquina - ver docs\S-Doc-Maquinas.md)
+  // para nao depender do nome do perfil do Windows nem do hash do terminal.
+  // Verificado no PC-Escritorio em 2026-08-18: 4 fontes, 0 erros.
   //
   // O metaeditor e' app GUI: nao escreve em stdout. Por isso /log, e uma
   // segunda task que le o log (UTF-16LE) e joga no terminal.
@@ -22,7 +25,7 @@
       "command": "C:\\Program Files\\MetaTrader 5 EXNESS\\metaeditor64.exe",
       "args": [
         "/compile:${file}",
-        "/inc:${env:APPDATA}\\MetaQuotes\\Terminal\\53785E099C927DB68A545C249CDBCE06\\MQL5",
+        "/inc:C:\\MT5\\Exness\\MQL5",
         "/log:${workspaceFolder}\\.vscode\\compile.log"
       ],
       "presentation": {
