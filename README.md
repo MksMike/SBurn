@@ -6,16 +6,24 @@ Leia `CLAUDE.md` antes de qualquer coisa: regras, estado empirico e armadilhas.
 ## Instalacao
 
 O repositorio espelha o caminho da pasta de dados do MT5, entao cada arquivo mora
-no mesmo lugar dentro e fora do repo. Ligar por junction (nao copiar):
+no mesmo lugar dentro e fora do repo. A ligacao e' por junction (nunca copia):
 
-    mklink /J "<PastaDeDados>\MQL5\Indicators\SBurn" "C:\dev\SBurn\MQL5\Indicators\SBurn"
-    mklink /J "<PastaDeDados>\MQL5\Experts\SBurn"    "C:\dev\SBurn\MQL5\Experts\SBurn"
-    mklink /J "<PastaDeDados>\MQL5\Include\SBurn"    "C:\dev\SBurn\MQL5\Include\SBurn"
+    git clone https://github.com/MksMike/SBurn.git C:\dev\SBurn
+    cd C:\dev\SBurn
+    powershell -ExecutionPolicy Bypass -File setup\S-Ps-Setup_Maquina.ps1
+    python -m pip install pandas scipy
 
-`mklink /J` nao exige administrador. Copiar em vez de ligar cria duas versoes do
-mesmo arquivo - e' a armadilha que o desenho do repo existe para evitar.
+O script acha a pasta de dados do terminal EXNESS, cria o alias `C:\MT5\Exness`
+e os 3 junctions (`Indicators\SBurn`, `Experts\SBurn`, `Include\SBurn`), e
+verifica. Idempotente; `mklink /J` nao exige administrador. Copiar em vez de ligar
+cria duas versoes do mesmo arquivo - e' a armadilha que o desenho do repo existe
+para evitar.
 
-Compilar (F7) nesta ordem: indicadores primeiro, EAs por ultimo.
+Compilar: `Ctrl+Shift+B` no VS Code, ou F7 no MetaEditor nesta ordem — indicadores
+primeiro, EAs por ultimo.
+
+Cada PC do projeto esta' descrito em `docs/S-Doc-Maquinas.md`, inclusive o que
+falta nele para reproduzir o resultado de referencia.
 
 ## Arquivos
 
@@ -29,6 +37,10 @@ Compilar (F7) nesta ordem: indicadores primeiro, EAs por ultimo.
 | `MQL5/Include/SBurn/S-Include-MovConsistency.mqh` | — | Sensor do MKS-Engine (copia fiel). |
 | `analise/S-Py-Analise_ConsistGate.py` | — | Analisa um CSV de medicao. |
 | `analise/S-Py-Compara_TFs.py` | — | Compara CSVs entre timeframes. |
+| `analise/S-Py-Perfil_Spread.py` | 1.02 | Perfila um export de ticks: spread e **autenticidade do feed** (trocas/1M). |
+| `setup/S-Ps-Setup_Maquina.ps1` | 1.00 | Parametriza um PC: alias, junctions, verificacao. |
+| `docs/S-Doc-Maquinas.md` | 1.0 | Registro das maquinas e do estado de cada uma. |
+| `docs/S-Doc-Spread_Contas.md` | 1.1 | Standard x Raw: medicao, decisao e a armadilha do spread carimbado. |
 
 ## Reproduzir o resultado de referencia
 

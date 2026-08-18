@@ -1,5 +1,5 @@
 # CLAUDE.md — Projeto SBurn
-**Versao:** 3.1 | **Atualizado:** 2026-08-17
+**Versao:** 3.2 | **Atualizado:** 2026-08-18
 Leia por completo antes da primeira acao. Em conflito, este arquivo vence.
 
 ---
@@ -60,14 +60,25 @@ caminho dele dentro do repositorio.
         Experts\SBurn\     S-EA-*.mq5          -> junction para o MT5
         Include\SBurn\     S-Include-*.mqh     -> junction para o MT5
       analise\             S-Py-*.py
+      setup\               S-Ps-*.ps1          <- parametrizacao de maquina
       docs\                S-Doc-*.md
       dados\               CSVs (nao versionados)
 
-Junctions (uma vez; `mklink /J` NAO exige administrador):
+### Parametrizacao de maquina (uma vez por PC)
 
-    mklink /J "<PastaDeDados>\MQL5\Indicators\SBurn" "C:\dev\SBurn\MQL5\Indicators\SBurn"
-    mklink /J "<PastaDeDados>\MQL5\Experts\SBurn"    "C:\dev\SBurn\MQL5\Experts\SBurn"
-    mklink /J "<PastaDeDados>\MQL5\Include\SBurn"    "C:\dev\SBurn\MQL5\Include\SBurn"
+    powershell -ExecutionPolicy Bypass -File setup\S-Ps-Setup_Maquina.ps1
+
+O script acha a pasta de dados do terminal EXNESS pelo `origin.txt` (o hash da
+pasta vem do caminho de instalacao — nunca chutar), cria o alias
+`C:\MT5\Exness` -> pasta de dados e os 3 junctions (`Indicators\SBurn`,
+`Experts\SBurn`, `Include\SBurn`) apontando para dentro do repositorio, e
+verifica. Idempotente; `mklink /J` NAO exige administrador.
+
+O alias existe para que arquivo VERSIONADO nao carregue nome de perfil do Windows:
+`.vscode\settings.json` e `tasks.json` apontam para `C:\MT5\Exness\MQL5` em
+qualquer PC. **Caminho real de maquina so' aparece em `docs\S-Doc-Maquinas.md`** —
+que tambem lista os PCs do projeto e o estado medido de cada um. Antes de confiar
+em qualquer numero rodado numa maquina, conferir la' a secao dela.
 
 Para REMOVER um junction use `cmd /c rmdir "<caminho>"` (sem `/s`): apaga so' o
 link. `Remove-Item -Recurse` do PowerShell SEGUE o link e apaga os fontes.
@@ -80,6 +91,7 @@ link. `Remove-Item -Recurse` do PowerShell SEGUE o link e apaga os fontes.
 | `S-EA-*.mq5` | `MQL5\Experts\SBurn\` | Sim (F7), por ultimo |
 | `S-Include-*.mqh` | `MQL5\Include\SBurn\` | Nao |
 | `S-Py-*.py` | `analise\` | — |
+| `S-Ps-*.ps1` | `setup\` | — |
 | `S-Doc-*.md` | `docs\` | — |
 
 Todo arquivo leva no cabecalho: pasta de instalacao, se compila, e a assinatura que
@@ -102,8 +114,9 @@ imprime no log.
 | Digitos | **3** (point = 0.001); 1 ponto com 0.01 lote = **$0.001** |
 | Spread real | mediana **260 pts**, p25 240, p75 280, p90 360 |
 | Conta | JPY, hedging |
-| Pasta de dados MT5 | `...\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5` |
+| Pasta de dados MT5 | alias `C:\MT5\Exness\MQL5` (junction por maquina) |
 | CSV de saida | `...\MetaQuotes\Terminal\`**`Common`**`\Files\SBurn\` (pasta IRMA) |
+| Maquinas | ver `docs\S-Doc-Maquinas.md` (PC-Escritorio = `MIKE-PC`) |
 | **Tick real Exness** | **so' a partir de 2026.01** |
 
 **Backtest so' com "Every tick based on real ticks".** O desenho e' path-dependent
@@ -225,10 +238,33 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
 12. **Buffer de sensor acoplado a input visual.** Corrigido no TMO (B8) e no
     ScalpPullback v2.02 (B4): buffers sempre calculados, visibilidade por
     `PLOT_DRAW_TYPE`.
+13. **Tick "real" do broker pode vir com spread CARIMBADO.** Medido em 2026-08-18
+    no XAUUSD da Exness-MT5Real3: 2026.01 tem 99,7% dos ticks em exatamente 37
+    pts e **5 trocas de spread em 2M ticks ao longo de 4 dias**, contra 26.104
+    trocas/1M no mes seguinte. Com spread constante o custo intrabar nao varia e
+    o BE nunca derrapa: backtest path-dependent nesse periodo e' **invalido**.
+    Contar valores DISTINTOS nao detecta isso — spread quantizado real tambem da'
+    poucos valores. O teste e' **trocas por milhao de ticks**, e ele roda em
+    `analise\S-Py-Perfil_Spread.py`. **Verificar todo periodo novo antes de usar**,
+    inclusive os que ja' passaram por rodada anterior.
 
 ---
 
 ## 7. Fila
+
+**ABERTO, ADIADO por decisao do Mike em 2026-08-18** — nao e' bloqueio, e' ressalva
+que anda junto do numero: rodar o teste de trocas/1M (`S-Py-Perfil_Spread.py`)
+sobre os ticks de **XAUUSDm** em 2026.01. A armadilha 13 foi medida no XAUUSD da
+Real3, onde janeiro entregou 47% do lucro com 17% dos trades. Se o mesmo defeito
+estiver no XAUUSDm, o resultado de referencia (137 trades, +$1.308,59, janela
+2026.01.01-08.12) inclui um mes invalido e precisa ser re-medido em 2026.02-08.
+
+**Enquanto nao for respondido:** o desenvolvimento segue normalmente sobre a
+referencia atual, mas **todo numero cuja janela inclua 2026.01 carrega essa
+ressalva** — inclusive comparacoes entre candidatos, que herdam o mesmo mes.
+Comparacao entre configuracoes na MESMA janela continua valida (o vies e' comum
+as duas); o que nao vale e' tratar o nivel absoluto como medido.
+Ver `docs\S-Doc-Spread_Contas.md`.
 
 1. **Rodar `SIG_PBSHALLOW`** (EA de medicao v1.20) — 4 configuracoes + 1 controle.
    Objetivo: mais trades/dia sem perder qualidade.
