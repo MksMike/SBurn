@@ -1,5 +1,5 @@
 # SBurn — Registro de Maquinas
-**Versao:** 1.0 | **Atualizado:** 2026-08-18
+**Versao:** 1.1 | **Atualizado:** 2026-08-19
 
 Este projeto roda em mais de um PC. Os arquivos versionados NAO podem conter
 caminho que dependa da maquina — o nome do perfil do Windows muda de PC para PC.
@@ -62,6 +62,7 @@ do PowerShell SEGUE o link e apaga os fontes.
 | Apelido | COMPUTERNAME | Perfil Windows | Repositorio | Status |
 |---|---|---|---|---|
 | **PC-Escritorio** | `MIKE-PC` | `Mike Inoue` | `C:\dev\SBurn` | ativo, parametrizado em 2026-08-18 |
+| **PC-Casa** | `DESKTOP` | `mikem` | `C:\dev\SBurn` | ativo, registrado em 2026-08-19; **falta o alias** |
 
 ### Perfis vistos no historico do repositorio (ainda sem apelido)
 
@@ -70,7 +71,7 @@ em uso, registrar aqui com apelido; se nao, sao historico morto.
 
 | Perfil | Onde apareceu | Situacao |
 |---|---|---|
-| `mikem` | `.vscode\settings.json` ate' 2026-08-18 (removido pelo alias) | nao identificada |
+| `mikem` | `.vscode\settings.json` ate' 2026-08-18 (removido pelo alias) | **e' o PC-Casa** (identificado em 2026-08-19) |
 | `fabul` | `docs\S-Doc-Handoff_Sessao.md` secao 1 (ainda la') | nao identificada |
 
 ---
@@ -145,3 +146,58 @@ ou reprovar hipotese.
 Nao substituir por `Exness-MT5Trial5` "porque tem os 8 meses": servidor diferente e'
 base de ticks diferente. Se um dia for usado de proposito, e' um experimento com
 proveniencia propria, declarada — nunca uma troca silenciosa (R3).
+
+---
+
+## 5. PC-Casa — estado medido em 2026-08-19
+
+| Item | Valor |
+|---|---|
+| COMPUTERNAME | `DESKTOP` |
+| Perfil Windows | `mikem` |
+| Repositorio | `C:\dev\SBurn` (branch `main`, sincronizado com o remoto em 2026-08-19) |
+| MT5 EXNESS | `C:\Program Files\MetaTrader 5 EXNESS` |
+| Pasta de dados | `C:\Users\mikem\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06` |
+| Alias `C:\MT5\Exness` | **AUSENTE** — pendencia, ver abaixo |
+| Junctions do projeto | os 3 existem, no formato ANTIGO (direto na pasta de dados, sem passar pelo alias) e enxergam os fontes do repositorio |
+| Python | presente, **sem `pandas` nem `scipy`** |
+| `.ex5` no repositorio | de 2026-08-18 03:10, compilados da **v2.01** — ESTAO VELHOS, o fonte agora e' v2.05 |
+
+### 5.1 Pendencias desta maquina
+
+1. **Criar o alias** `C:\MT5\Exness` -> pasta de dados. Sem ele o
+   `.vscode\tasks.json` (que aponta para `C:\MT5\Exness\MQL5`) nao compila.
+   `powershell -ExecutionPolicy Bypass -File setup\S-Ps-Setup_Maquina.ps1`
+2. **Recompilar os 4 fontes** — indicadores primeiro, EAs por ultimo. Os `.ex5`
+   presentes sao da v2.01 e NAO tem as correcoes [B16]/[B17] nem o default
+   `InpPirEnabled=false` da v2.05.
+3. **`python -m pip install pandas scipy`** — `S-Py-Perfil_Spread.py` nao roda sem.
+
+### 5.2 O que esta maquina DESBLOQUEIA
+
+Os dois itens da secao "Bloqueado em voce" do checkpoint de 2026-08-19 sao
+pendencias do PC-Escritorio, **nao do projeto**: esta maquina tem o dado.
+
+Cobertura de tick de XAUUSDm em `bases\<servidor>\ticks\XAUUSDm\`:
+
+| Servidor | Meses | Tamanho de 202601 |
+|---|---|---|
+| **`Exness-MT5Real41`** | **202601 a 202608, completo** | 94,2 MB |
+| `Exness-MT5Trial5` | 202601 a 202608, completo | 91,4 MB |
+
+`Exness-MT5Real41` e' o servidor da referencia historica do projeto — o que o
+PC-Escritorio nao tinha (so' `202608`). Logo, daqui da' para:
+
+- **exportar XAUUSDm 2026.01** e condenar (ou absolver) janeiro **no simbolo e no
+  servidor da referencia**, em vez de inferir a partir de XAUUSD@Real3;
+- rodar o backtest de referencia na base de tick certa.
+
+**Ressalva (R3):** `.tkc` presente e grande NAO e' prova de tick autentico — a
+hipotese do tick reconstruido preve justamente MAIS ticks em janeiro (1,86x). Quem
+decide e' o passo p90 do BID medido pelo `S-Py-Perfil_Spread.py`. Ate' rodar isso,
+esta secao afirma apenas que **o dado existe localmente**, nada sobre a qualidade.
+
+**Anomalia a explicar antes de usar:** 2026.03 tem 170,3 MB no `Real41` contra
+83,5 MB no `Trial5` — 2,0x para o mesmo mes e o mesmo simbolo. Nos outros meses os
+dois servidores ficam a menos de 15% um do outro (excecao: 202607, 52,9 contra
+75,1 MB). Nao interpretar antes de medir.
