@@ -120,7 +120,35 @@ desenho (secao 3 da `CLAUDE.md`). `Report=` sem caminho e sem extensao.
 
 ---
 
-## 4. Ressalvas que acompanham este numero
+## 4. Verificar a rodada (obrigatorio antes de acreditar no numero)
+
+    python analise\S-Py-Verifica_Rodada.py <relatorio.htm> ^
+           --log <Tester\<hash>\Agent-127.0.0.1-3001\logs\<data>.log> ^
+           --referencia analise\S-Ref-Referencia.json
+
+Sai com codigo **1** se algo divergir. Tres blocos:
+
+| bloco | o que compara | pega |
+|---|---|---|
+| A | linhas do CSV x negociacoes do relatorio; soma do `pnl_moeda` x lucro liquido | gravador incompleto (foi o bug da v2.06: 63 de 65 pernas) |
+| B | contadores de falha do log contra o **perfil esperado** da referencia | falha NOVA; as conhecidas seguem impressas mas nao viram ruido |
+| C | 6 metricas e os **32 inputs** contra `S-Ref-Referencia.json` | regressao apos refatorar (armadilha 11) e `.set` velho (armadilha 5) |
+
+O bloco C compara input a input. Se o tester tiver guardado a configuracao da
+rodada anterior, a saida diz **qual** input derivou — foi exatamente o que
+estragou as rodadas de 2026-08-18 sem ninguem perceber.
+
+A referencia e' **gerada**, nunca digitada:
+
+    python analise\S-Py-Verifica_Rodada.py <relatorio.htm> --log <log> ^
+           --gravar-referencia analise\S-Ref-Referencia.json
+
+Exige `--log`: sem ele o perfil de falhas esperadas nasceria vazio e a checagem
+comecaria cega.
+
+---
+
+## 5. Ressalvas que acompanham este numero
 
 1. **76 operacoes nao validam nada.** Dois meses com ZERO trade, tres dias fazendo
    61% do lucro, um trade sozinho rendendo 34,7%. Reproduzir e' condicao

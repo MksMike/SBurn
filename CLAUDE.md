@@ -87,7 +87,7 @@ caminho dele dentro do repositorio.
         Indicators\SBurn\  S-Ind-*.mq5         -> junction para o MT5
         Experts\SBurn\     S-EA-*.mq5          -> junction para o MT5
         Include\SBurn\     S-Include-*.mqh     -> junction para o MT5
-      analise\             S-Py-*.py
+      analise\             S-Py-*.py  S-Ref-*.json
       setup\               S-Ps-*.ps1          <- parametrizacao de maquina
       docs\                S-Doc-*.md
       dados\               CSVs (nao versionados)
@@ -121,6 +121,7 @@ link. `Remove-Item -Recurse` do PowerShell SEGUE o link e apaga os fontes.
 | `S-Py-*.py` | `analise\` | — |
 | `S-Ps-*.ps1` | `setup\` | — |
 | `S-Doc-*.md` | `docs\` | — |
+| `S-Ref-*.json` | `analise\` | — (artefato de medicao GERADO, nunca digitado) |
 
 Todo arquivo leva no cabecalho: pasta de instalacao, se compila, e a assinatura que
 imprime no log.
@@ -667,6 +668,13 @@ nao mais o proximo experimento interessante.
    (export em `C:\dev\Historico\`, fora do repo por tamanho). **Julho esta'
    VALIDADO.** Ver a tabela na armadilha 13. Falta so' o mesmo teste em 2026.01
    do XAUUSDm: o export baixado comeca em **2026-05-14** e nao alcanca janeiro.
+3c-bis. ~~Verificacao pos-rodada manual~~ — **FEITO em 2026-08-19**:
+   `analise\S-Py-Verifica_Rodada.py` reconcilia CSV x relatorio, compara o
+   perfil de falhas e faz regressao de metricas E inputs contra
+   `S-Ref-Referencia.json`. Sai com codigo != 0. **Rodar em TODA rodada** — foi
+   escrito porque dois erros de 2026-08-19 (um numero transcrito errado e a
+   v2.06 gravando 63 de 65 pernas) escaparam da conferencia manual e so'
+   apareceram por acaso. A comparacao de inputs e' o detector da armadilha 5.
 3d. **Consertar o gravador de CSV.** `S-EA-Pullback_Live.mq5` filtra por `InpMagic`
    e nao grava as pernas da piramide nem o fechamento forcado de fim de teste.
    Ou grava, ou os relatorios `.htm` passam a ser versionados.
