@@ -44,6 +44,25 @@
 # Comparar contas so' pelo spread favorece a Raw artificialmente.
 #
 # CHANGELOG
+#   1.05  2026-08-19  CORRECAO DO ALERTA da v1.04: ele usava OR entre "p90
+#                     baixo" e "densidade alta", e deu FALSO POSITIVO em
+#                     2026.03 do Real3 (405 ticks/min = 1,61x, mas p90 = 241
+#                     = 1,12x, ou seja, NORMAL). Densidade alta sozinha e'
+#                     mes movimentado, nao defeito. O sinal e' a AUSENCIA DE
+#                     SALTO: so' p90 dispara. Densidade virou contexto — ela
+#                     REFORCA a leitura quando o p90 ja' caiu (janeiro tem os
+#                     dois: 0,38x e 1,86x), mas nao acusa sozinha.
+#   1.04  2026-08-19  O DISCRIMINADOR DO CAMINHO DO BID E' A CAUDA, NAO A
+#                     MEDIANA. Medido no XAUUSD@Real3 (64,4M ticks): 2026.01
+#                     da' passo p50 = 40 contra mediana mensal 65,5 — razao
+#                     0,61x, que NAO dispara um corte de 0,6 e deixaria o mes
+#                     podre passar. O mesmo mes da' p90 = 82 contra 215,5
+#                     (0,38x) e 467,5 ticks/min contra 250,9 (1,86x). Motivo:
+#                     feed interpolado tem MUITOS ticks pequenos — isso puxa a
+#                     mediana de todos os meses para baixo e comprime o
+#                     contraste. O que o feed reconstruido NAO tem e' salto,
+#                     e salto mora no p90. Alerta passou a olhar p90 e
+#                     ticks/min.
 #   1.03  2026-08-19  CAMINHO DO BID: mediana de |dbid| por tick e ticks/min
 #                     por mes. O teste de spread (trocas/1M) so' enxerga o
 #                     canal do ASK; um feed reconstruido de barra M1 pode ter
@@ -259,7 +278,7 @@ def main():
     linha('  %-9s %13s %11s %11s %11s %11s'
           % ('mes', 'ticks', 'passo p50', 'passo p90', 'ticks/min', 'pts/min'))
     linha('  ' + '-' * 72)
-    p50s = {}
+    p50s, p90s, tpms = {}, {}, {}
     for m in sorted(passo_mes):
         h = passo_mes[m]
         n = int(h.sum())
@@ -268,22 +287,48 @@ def main():
         nmin = max(1, len(minutos_mes.get(m, ())))
         tpm = n / nmin
         p50 = pctl(h, 0.50)
-        p50s[m] = p50
+        p90 = pctl(h, 0.90)
+        p50s[m], p90s[m], tpms[m] = p50, p90, tpm
         linha('  %-9s %13s %11d %11d %11.1f %11.0f'
-              % (m, f'{n:,}', p50, pctl(h, 0.90), tpm, p50 * tpm))
-    if len(p50s) >= 3:
-        med = float(np.median(list(p50s.values())))
+              % (m, f'{n:,}', p50, p90, tpm, p50 * tpm))
+    if len(p90s) >= 3:
+        med90 = float(np.median(list(p90s.values())))
+        medtpm = float(np.median(list(tpms.values())))
         linha()
-        for m in sorted(p50s):
-            if med > 0 and p50s[m] < 0.6 * med:
-                linha('  >>> %s: passo %d pts = %.2fx a mediana dos meses (%.0f).'
-                      % (m, p50s[m], p50s[m] / med, med))
-                linha('      Assinatura de TICK RECONSTRUIDO de barra M1: o mesmo')
-                linha('      movimento partido em mais passos, menores. Preserva OHLC')
-                linha('      (MFE/MAE de barra ficam normais) e INVENTA o caminho')
-                linha('      intraminuto — que e' + "'" + ' onde o breakeven e o stop vivem.')
-                linha('      Mes INVALIDO para desenho path-dependent, e NAO recuperavel')
-                linha('      re-precificando: modelo de spread conserta o ask, nao o bid.')
+        linha('  Referencia dos meses: p90 = %.0f pts, ticks/min = %.0f'
+              % (med90, medtpm))
+        for m in sorted(p90s):
+            r90 = p90s[m] / med90 if med90 else 1.0
+            rtpm = tpms[m] / medtpm if medtpm else 1.0
+            if r90 >= 0.6:
+                # Densidade alta SOZINHA nao acusa nada: e' mes movimentado.
+                # Medido: 2026.03 do Real3 tem 1,61x de densidade e p90 1,12x
+                # (salto normal) — mes real, nao reconstruido.
+                if rtpm > 1.6:
+                    linha('  (%s: %.0f ticks/min = %.2fx a mediana, mas p90 %.2fx '
+                          '= salto normal. Mes movimentado, nao defeito.)'
+                          % (m, tpms[m], rtpm, r90))
+                continue
+            linha('  >>> %s: p90 = %d pts (%.2fx) e %.0f ticks/min (%.2fx).'
+                  % (m, p90s[m], r90, tpms[m], rtpm))
+            linha('      Assinatura de TICK RECONSTRUIDO de barra M1: o mesmo')
+            linha('      movimento partido em mais passos, menores, SEM salto.')
+            linha('      Preserva OHLC (MFE/MAE de barra ficam normais) e INVENTA')
+            linha('      o caminho intraminuto — onde o breakeven e o stop vivem.')
+            linha('      Mes INVALIDO para desenho path-dependent, e NAO recuperavel')
+            linha('      re-precificando: modelo de spread conserta o ask, nao o bid.')
+    linha()
+    linha('  POR QUE p90 E NAO MEDIANA: feed interpolado tem MUITOS ticks')
+    linha('  pequenos, e isso puxa a mediana de TODOS os meses para baixo,')
+    linha('  comprimindo o contraste. O que o feed reconstruido nao tem e' + "'" + ' SALTO,')
+    linha('  e salto mora na cauda. Medido: 2026.01 do Real3 da' + "'" + ' p50 0,61x da')
+    linha('  mediana mensal (nao dispara corte de 0,6) e p90 0,38x (dispara).')
+    linha()
+    linha('  DENSIDADE E CONTEXTO, NAO GATILHO: mes movimentado tem mais ticks')
+    linha('  E mantem o salto. Feed reconstruido tem mais ticks E perde o salto.')
+    linha('  So' + "'" + ' o p90 dispara; a densidade reforca a leitura quando o p90 ja' + "'")
+    linha('  caiu. 2026.01 do Real3 tem os dois (0,38x e 1,86x); 2026.03 tem so' + "'")
+    linha('  densidade (1,61x com p90 1,12x) e e' + "'" + ' mes real.')
     linha()
     linha('  LEITURA — este teste e' + "'" + ' independente do de spread e pega o que ele')
     linha('  nao pega. Um feed reconstruido pode ter spread plausivel e caminho')

@@ -58,7 +58,7 @@ precisa resolver: **`docs/S-Doc-Portabilidade.md`**. **Nada disso esta implement
 | `MQL5/Include/SBurn/S-Include-MovConsistency.mqh` | — | Sensor do MKS-Engine (copia fiel). |
 | `analise/S-Py-Analise_ConsistGate.py` | — | Analisa um CSV de medicao. |
 | `analise/S-Py-Compara_TFs.py` | — | Compara CSVs entre timeframes. |
-| `analise/S-Py-Perfil_Spread.py` | 1.02 | Perfila um export de ticks: spread e **autenticidade do feed** (trocas/1M). |
+| `analise/S-Py-Perfil_Spread.py` | **1.05** | Perfila um export de ticks: spread, **autenticidade do feed** (trocas/1M, canal do ask) e **caminho do BID** (passo p90 por tick, canal do bid). Os dois testes sao independentes e pegam defeitos diferentes. |
 | `setup/S-Ps-Setup_Maquina.ps1` | 1.00 | Parametriza um PC: alias, junctions, verificacao. |
 | `docs/S-Doc-Maquinas.md` | 1.0 | Registro das maquinas e do estado de cada uma. |
 | `docs/S-Doc-Spread_Contas.md` | 1.1 | Standard x Raw: medicao, decisao e a armadilha do spread carimbado. |

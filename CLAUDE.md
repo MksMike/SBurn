@@ -507,10 +507,33 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     janeiro. Aquilo era amostra de 4 dias; o mes inteiro da' **178/1M**. Continua
     45x abaixo da mediana, continua reprovado — mas o numero certo e' 178.
 
-    **CAMINHO DO BID na fonte (v1.03 do script), XAUUSDm mai-ago:** passo p50 de
-    **61 a 65 pts/tick** nos quatro meses, ticks/min 197-265. Janela valida
-    **homogenea**, sem anomalia. (O export baixado comeca em 2026-05-14 e nao
-    alcanca janeiro no XAUUSDm.)
+    **CAMINHO DO BID medido na FONTE** (`S-Py-Perfil_Spread.py` v1.05, secao 4),
+    XAUUSD @ Real3, 64,4M ticks — o unico export que alcanca janeiro:
+
+    | mes | passo p50 | **passo p90** | ticks/min | pts/min |
+    |---|---|---|---|---|
+    | **2026.01** | **40** | **82** | **467,5** | 18.699 |
+    | 2026.02 | 87 | 209 | 292,5 | 25.450 |
+    | 2026.03 | 79 | 241 | 404,9 | 31.984 |
+    | 2026.04 | 68 | 238 | 236,7 | 16.095 |
+    | 2026.05 | 66 | 236 | 208,9 | 13.786 |
+    | 2026.06 | 61 | 210 | 265,1 | 16.168 |
+    | 2026.07 | 60 | 200 | 214,9 | 12.891 |
+    | 2026.08 | 65 | 221 | 198,4 | 12.896 |
+
+    Janeiro tem o **mesmo caminho total por minuto** (18.699, no meio da faixa)
+    partido em **1,86x mais ticks, cada um muito menor e SEM SALTO** (p90 82
+    contra 200-241). Assinatura de tick reconstruido de barra M1: preserva OHLC
+    — por isso MFE/MAE e ATR de barra ficam normais — e **inventa o caminho
+    intraminuto**, que e' onde o BE e o stop vivem.
+
+    **XAUUSDm mai-ago (v1.05):** p50 61-65, p90 202-236 — homogeneo, sem
+    anomalia. O export comeca em 2026-05-14 e **nao alcanca janeiro no XAUUSDm**.
+    Nos 4 meses que se sobrepoem os dois feeds sao praticamente o mesmo
+    (p50 65/61/61/65 contra 66/61/60/65; p90 236/218/202/230 contra
+    236/210/200/221), o que torna muito provavel que janeiro do XAUUSDm tenha o
+    mesmo defeito — mas isso e' **inferencia, nao medicao**. Para fechar:
+    exportar XAUUSDm de 2026.01.01 a 2026.05.14.
     (O export baixado comeca em 2026-05-14, entao 2026.01 do XAUUSDm ainda nao
     passou por este teste na fonte — segue apoiado no passo do BID e no proxy de
     janelas de 75 ticks.)
@@ -541,7 +564,21 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     (`demo account`), e `bases\<servidor>	icks\<simbolo>\*.tkc` — o servidor
     que tem os arquivos e' o que alimentou o backtest. **Conferir antes de citar
     qualquer numero como sendo "da conta X".**
-15. **Parametro absoluto nao falha com erro; falha em silencio.** `InpMaxSpread=260`
+15. **Teste de autenticidade calibrado no indicador errado erra na CAUDA — que
+    e' onde o defeito mora.** O criterio para reprovar um periodo passou por
+    quatro versoes em um dia, e cada uma so' caiu porque foi rodada em dado real:
+    (a) **valores distintos de spread** — erra nos DOIS sentidos: 2026.01 tem 343
+    valores (o maior dos 8 meses) e e' podre; julho tem 11 e e' bom;
+    (b) **trocas/1M** — correto, mas so' enxerga o canal do ASK;
+    (c) **passo p50 do BID** — quase deixa janeiro passar (0,61x contra um corte
+    de 0,6), porque feed interpolado tem muitos ticks pequenos e isso puxa a
+    mediana de TODOS os meses para baixo, comprimindo o contraste;
+    (d) **passo p90 do BID** — separa limpo: 0,38x contra 0,93-1,12x dos outros.
+    E o alerta da v1.04 usava OR com densidade e deu **falso positivo em
+    2026.03** (405 ticks/min mas p90 normal = mes movimentado). **Densidade alta
+    sozinha nao acusa nada.** O sinal e' a AUSENCIA DE SALTO. Corrigido na v1.05:
+    so' o p90 dispara; densidade e' contexto que reforca.
+16. **Parametro absoluto nao falha com erro; falha em silencio.** `InpMaxSpread=260`
     numa conta Raw (spread mediano 90) deixa passar 100% dos sinais: o filtro
     desaparece e o log nao diz nada. Medido na janela valida, o EA sem esse filtro
     cai de PF 7,41 para 1,80 e o drawdown de saldo vai de $23,37 para $196,06.
