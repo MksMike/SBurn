@@ -153,7 +153,7 @@ imprime no log.
 | Pasta de dados MT5 | alias `C:\MT5\Exness\MQL5` (junction por maquina) |
 | CSV de saida | `...\MetaQuotes\Terminal\`**`Common`**`\Files\SBurn\` (pasta IRMA) |
 | Maquinas | ver `docs\S-Doc-Maquinas.md` (PC-Escritorio = `MIKE-PC`) |
-| **Tick real Exness** | **so' a partir de 2026.02** (2026.01 reprovado — ver armadilha 13) |
+| **Tick utilizavel (Trial5)** | **2026-01-30 em diante.** A linha antiga dizia "so' a partir de 2026.01" e foi ELA que autorizou usar janeiro. O caminho do BID e' defeituoso ate' 2026-01-29 (ver armadilha 13). Corta-se em 2026.02.01 por conveniencia: refinar ganha 1 pregao. |
 
 > **DESCOBERTO em 2026-08-19:** todas as medicoes do projeto rodaram contra
 > `Exness-MT5Trial5`, um servidor de **demo**, e nao contra o `Exness-MT5Real41`
@@ -225,10 +225,28 @@ O desenho sobrevive — os dois filtros levam o PF de 1,54 a 7,41 — mas **a ma
 era metade janeiro**. Repare tambem na **lei 3 em acao**: sem o filtro de spread o
 histograma PIORA o lucro ($853 -> $719); com ele, melhora ($738 -> $777).
 
-**Status: promissor, NAO validado, e agora com base menor do que se pensava.**
-**76 trades em 6,5 meses, e dois meses (abril e maio) com ZERO trades** — o filtro
-absoluto de spread desliga o EA quando a mediana da conta sobe para 308. A
-estabilidade mensal que a secao 4 exige para promocao **nao existe**.
+> **CORRECAO (R3) — eu apresentei a exclusao de janeiro como degradacao e ela nao
+> e'.** `1387,20/7,40 = $187,46` e `777,23/4,15 = $187,28`: as duas razoes dividem
+> pelo **mesmo** drawdown. O pior rebaixamento de capital da janela mora inteiro em
+> fev-ago. Excluir janeiro tirou **$609,97 de lucro e $0,06 de risco**. Na curva de
+> trades fechados a direcao **se inverte**: ret/DD 19,27 -> **32,92**, PF 4,62 ->
+> **7,34**, media/trade $9,38 -> **$10,26**. A exclusao **melhorou** todo indicador
+> de qualidade. O que ela custou foi AMOSTRA, nao desempenho — ela corrigiu
+> procedencia, nao otimismo de nivel.
+
+**Status: promissor, NAO validado, e a amostra e' pior condicionada do que o "76"
+sugere. Publicar sempre com a concentracao na manchete:**
+
+- **abril e maio: ZERO operacoes** (o corte absoluto de 260 barra 100% dos sinais;
+  mediana do mes 308). Marco: 2. Julho: 40 de 76 (**53%**), e e' o pior mes por
+  trade ($3,42).
+- **tres dias fazem 61% do lucro**; um unico trade (2026.03.19) rende $267,14 =
+  34,7% do total.
+- A estabilidade mensal que a secao 4 exige para promocao **nao existe**.
+- **Excluir janeiro mantendo o corte 260 tira da amostra os meses de tendencia
+  forte** — exatamente o regime que a estrategia captura. Todo veredito tirado
+  desta janela herda esse vies. Por isso a grade de `InpMaxSpread` vem ANTES de
+  qualquer veredito novo (fila).
 
 ### 5.2 O problema aberto: participacao
 
@@ -299,26 +317,72 @@ com queda dos dois lados (assinatura de estrutura, nao de pico de sobreajuste).
 > | so' a principal | $777,23 | $187,34 | 7,41 | 76 | **4,15** |
 > | + piramide | $962,49 | $426,52 | 4,25 | 141 | **2,26** |
 >
-> Na margem: **+$185,26 de lucro por +$239,18 de DD = 0,77x.** A piramide
-> **adiciona mais drawdown do que lucro** e quase corta o fator de recuperacao pela
-> metade. **Todo o argumento de +89% era 2026-01.** A recomendacao passa a ser
-> reverter o default para `false`; a decisao e' do Mike e esta pendente.
+> Na margem: **+$185,26 de lucro por +$239,18 de DD = 0,77x.** Marginal ON-OFF por
+> mes: **jan +1.044,79** | fev +3,35 | mar -0,57 | jun -34,43 | jul +69,51 |
+> ago +147,40. **Janeiro sozinho e' 84,9% de toda a evidencia que ligou a
+> piramide** — e o DD extra ($239,18) e' IDENTICO nas duas janelas: o risco dela
+> esta fora de janeiro, o lucro dela esta dentro.
+>
+> **Ha causa medida, nao so' correlacao.** Cada adicao morre quando o preco encosta
+> de volta no proprio nivel de entrada dela; o caminho do BID de janeiro e'
+> anomalamente liso (armadilha 13), entao a adicao nao encosta. Medido na simulacao
+> **BID-pura** do EA de medicao (colunas `pir_b*`, zero spread): adicao a 3,0xATR
+> nunca volta ao nivel em **29,5% em janeiro contra 18,1% no resto** (OR 1,90,
+> p=0,011). *Ressalva: a 2,0xATR o efeito NAO sobrevive a deduplicacao — 25,6%
+> contra 20,9%, p=0,135.* Ou seja: janeiro nao e' amostra a favor da piramide, e'
+> **anti-evidencia** — o defeito de dado premia exatamente o mecanismo que ela
+> monetiza.
+>
+> **Decisao: default revertido para `false` na v2.05** (2026-08-19).
+> **Status: INDECIDIVEL, nao "reprovada"** — 65 adicoes em 5 meses efetivos, dois
+> deles com zero operacao. E o numero vem do relatorio do MT5: o gravador filtra
+> por `InpMagic` e **nao escreve as pernas da piramide**, entao `ops_pirON.csv` e
+> `ops_pirOFF.csv` sao byte-identicos. Efeito colateral util: esta **provado** que
+> ligar a piramide nao altera um unico trade da principal.
 
-**`SIG_PBSHALLOW`: RODADO E REPROVADO em 2026-08-19** — 4 configuracoes + controle,
+**`SIG_PBSHALLOW`: RODADO em 2026-08-19** — 4 configuracoes + controle,
 pre-registro em `docs\S-Doc-PreReg_PBSHALLOW.md`. A frequencia sobe de verdade
-(3,3x a 5,1x sinais/dia), mas a assimetria desaba: P2/P3/P4 nao pagam o spread, e
-P1 (o unico que passava) cai junto ao remover 2026-01. **A H0 do pre-registro — "o
-canal PAC nao e' burocracia, e' o que separa recuo de reversao" — sai confirmada.**
-Detalhes e as correcoes de metodo que o tribunal encontrou: 5.4.
+(3,3x a 5,1x sinais/dia), mas a assimetria desaba.
+
+| | assim30 janela cheia | s/ janeiro | IC95 (s/ jan) | P(assim>custo) |
+|---|---|---|---|---|
+| P1 | 329 vs custo 260 | 207,5 vs 280 | [-899, +1.320] | 0,55 -> **0,44** |
+| P2 | -108 | -284 | — | 0,25 -> 0,12 |
+| P3 | -219 | -482 | — | 0,17 -> 0,16 |
+| P4 | -476 | -644,5 | — | 0,09 -> 0,07 |
+
+**P2, P3 e P4: REPROVADOS**, robustamente, nas duas janelas. **P1: INDECIDIVEL**,
+nao reprovado — cara ou coroa nas duas. Eu escrevi "4 de 4" e isso e' **precisao
+falsa (R3)**: o veredito do P1 vira conforme o mes que se tira, e o proprio
+criterio se moveu junto (o custo mediano do arquivo sobe de 260 para 280 quando
+janeiro sai — **a trave andou com a medida**). Para escala: a assimetria30 mensal
+varia de -2.975 (abr) a +1.916 (jun), ~10x o efeito de janeiro.
+
+**A H0 do pre-registro — "o canal PAC nao e' burocracia, e' o que separa recuo de
+reversao" — sai confirmada de forma FRACA, nunca refutada.** P1 exige OOS, nao
+outro recorte da mesma janela.
 
 ### 5.3 Filtros — o que agrega
 
 | Filtro | Descartados rendem | t | Veredito |
 |---|---|---|---|
 | Histograma TMO nao-profundo | -$0.08 | +2.06 | **usar** |
-| Spread <= 260 | -$0.54 | — | **usar** (99% e' condicao de mercado, nao custo) |
+| Spread <= 260 | -$0.54 | — | **RESSALVADO em 2026-08-19 — ver abaixo** |
 | Confluencia MTF do TMO | **+$2.86** | +0.62 | nao usar — joga lucro fora |
 | Veto de zona (OB/OS) | — | — | validado, mas redundante (sinais do SP nascem 100% fora de zona) |
+
+> **O achado mais incomodo de 2026-08-19.** O teste do descartado do filtro de
+> spread, refeito **so' na janela valida** (CTRL, fev-ago): mantidos assimetria30
+> = **1.428** (n=210), descartados = **1.710** (n=358), Mann-Whitney **p=0,431**;
+> `spearman(spread, assimetria30)` rho = -0,050 (p=0,239). **Sem janeiro, o filtro
+> que sustenta a melhor configuracao ja' medida nao tem valor de selecao
+> detectavel — e os descartados sao, se algo, marginalmente melhores.**
+>
+> A linha "99% e' condicao de mercado, nao custo" foi medida numa janela em que
+> janeiro dominava o lado MANTIDO **com o filtro inerte** (aprovava 100% la'). Ela
+> precisa de re-medicao antes de continuar sendo citada. Isso e' mais grave que a
+> propria exclusao de janeiro: poe em duvida o filtro que separa a config de 26,6x
+> das outras.
 
 ### 5.4 Hipoteses MORTAS (nao re-testar)
 
@@ -378,17 +442,52 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     poucos valores. O teste e' **trocas por milhao de ticks**, e ele roda em
     `analise\S-Py-Perfil_Spread.py`. **Verificar todo periodo novo antes de usar**,
     inclusive os que ja' passaram por rodada anterior.
-    **CONFIRMADO no XAUUSDm em 2026-08-19, e agora ha' um teste MAIS BARATO:**
-    contar **valores distintos de spread por mes** no CSV do EA de medicao.
+    **CONFIRMADO no XAUUSDm em 2026-08-19 — mas o criterio que decide NAO e' o
+    do spread.** Um teste barato e' contar **valores distintos de spread por mes**
+    no CSV do EA de medicao.
     2026-01 @ Trial5 tem **UM unico valor — exatamente 160,0 pts — em 100% dos
     sinais**, nos 25 dias de pregao, em 5 arquivos independentes; os outros 7
     meses tem de 3 a 20. **Um valor unico num mes inteiro e' veredito, nao
-    suspeita** — nenhum feed real produz isso. Nao substitui trocas/1M (spread que
-    varia pouco escapa), mas dispensa export de ticks. Efeito medido no desenho:
+    suspeita** — nenhum feed real produz isso. **Mas ele erra nos dois sentidos:**
+    julho tem so' 3 valores distintos e 99,7% de aprovacao no filtro, e julho e'
+    **BOM**. Quem separa os dois e' o teste abaixo.
+
+    **>>> O CRITERIO QUE DECIDE: passo do BID por tick.** `dist_pts/(n_ticks-1)`
+    do `CMovConsistencySensor`, que le `tk.bid` (`InpFeedMid=false`) e **nunca
+    toca no ask**. Pool dos 5 CSVs, 5.228 sinais:
+
+    | mes | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 |
+    |---|---|---|---|---|---|---|---|---|
+    | pts/tick | **43,1** | 107,5 | 104,4 | 97,3 | 103,7 | 97,8 | **97,2** | 105,9 |
+
+    Invariante a tudo que se testou: razao jan/resto 0,405-0,437 nos 5 quintis de
+    ATR (p de 3e-111 a 6e-72) e 0,387-0,445 nas 23 horas. AUC 0,985. **Densidade
+    nao explica**: `spearman(ticks/s, passo)` = -0,020 (p=0,18) dentro da janela
+    valida, e no decil mais denso do pool janeiro da' 45,3 contra 104,3 do resto.
+    Confirmacao no P&L **imune a spread** (so' COMPRAS, cujo `pnl_pts` independe
+    do spread por construcao): derrapagem na saida por BE tem **0 de 36** casos
+    acima de 100 pts em janeiro contra **9 de 20 (45%)** no resto; reescalando o
+    limiar pela propria densidade, 8% contra 45%, Fisher p=0,0024.
+
+    **Assinatura:** o mesmo movimento real partido em ~2x mais passos, ~2,4x
+    menores. E' tick RECONSTRUIDO a partir de barra M1 — preserva OHLC (por isso
+    MFE/MAE e ATR de barra ficam normais: `vol_eff` p=0,284) e **inventa o caminho
+    intraminuto**, que e' exatamente onde o BE e o stop vivem.
+
+    **Consequencia que muda a fila: janeiro NAO e' recuperavel re-precificando.**
+    Modelo de spread conserta o ask; nao reconstroi um caminho de BID 2,35x mais
+    fino. Item 3 da fila serve para **substituir** o tick, nao para re-precificar.
+    Nao substitui trocas/1M (spread que varia pouco escapa), mas dispensa export
+    de ticks. Efeito medido no desenho:
     `pnl_pts` mediano das saidas por BE = **-20 em janeiro contra -47 no resto**;
     e o filtro `<=260` passa **100%** de janeiro (contra 0% de abril e maio),
     inflando janeiro para **49% da amostra**. O mesmo mes ja' vinha carimbado a 37
     pts no Real3: **e' defeito do historico de janeiro da Exness, nao da conta.**
+    **O dano do spread congelado NAO e' custo — e' SELECAO.** Re-precificando
+    exato, o mes inteiro muda **-$10,66** (1,7%). O que contamina e' o
+    `InpMaxSpread=260` ter aprovado **100,0%** dos sinais de janeiro contra 45,7 /
+    3,6 / **0,0** / **0,0** / 43,8 / 100 / 95,1% em fev-ago: em janeiro o filtro
+    mais valioso da estrategia estava **inerte**, e 49% da referencia veio dali.
 14. **O tester pode estar rodando contra um servidor que a doc nao declara.**
     Oito meses de medicao sairam do `Exness-MT5Trial5` (DEMO) enquanto a secao 3
     afirmava `Exness-MT5Real41`. Onde conferir, em ordem de custo: cabecalho do
@@ -411,11 +510,13 @@ nao mais o proximo experimento interessante.
 
 ### Resolvido nesta data (nao re-abrir)
 
-- **O item ABERTO/ADIADO sobre 2026.01 esta RESPONDIDO, e negativo.** 2026-01 no
-  XAUUSDm tem spread carimbado em 160,0 (armadilha 13). O mes sai da MEDICAO. Sob
-  a R8 ele nao trava o projeto: e' defeito do historico de um broker, num mes —
-  trata-se com **coluna de proveniencia**, reportando os dois numeros.
-- **`SIG_PBSHALLOW`: REPROVADO**, 4 de 4 configuracoes. Ver 5.4.
+- **O item ABERTO/ADIADO sobre 2026.01 esta RESPONDIDO, e negativo.** Mas nao pelo
+  spread: o que decide e' o **caminho do BID** (43,1 pts/tick contra 97-108),
+  defeituoso ate' **2026-01-29**. Ver armadilha 13. **Janeiro nao e' recuperavel
+  re-precificando** — so' substituindo o tick.
+- **`SIG_PBSHALLOW`:** P2/P3/P4 **reprovados**; **P1 indecidivel** (P(assim>custo)
+  = 0,44). "4 de 4" era precisao falsa. Ver 5.4.
+- **Piramide:** default de volta a `false` (v2.05). Status **indecidivel**.
 
 ### Caminho critico (R8)
 
@@ -433,6 +534,17 @@ nao mais o proximo experimento interessante.
    O ganho da forma relativa e' **portabilidade**, nao selecao.
 3. **Comissao.** Nunca foi medida. Zero e' suposicao. Numa Raw/Zero ela e' o custo
    dominante e entra direto no degrau do BE.
+3b. **Re-medir o valor do filtro de spread** (5.3). Na janela valida ele nao tem
+   valor de selecao detectavel (p=0,431). E' o achado mais incomodo do dia e poe
+   em duvida a config de referencia.
+3c. **`S-Py-Perfil_Spread.py` sobre os `.tkc` de XAUUSDm@Trial5** — os arquivos
+   existem (`bases\Exness-MT5Trial5	icks\XAUUSDm601.tkc`, 91 MB, ate'
+   `202608`). Acrescentar duas colunas: mediana de |dbid| por tick e ticks/minuto
+   por dia. As medicoes de hoje vem de janelas de 75 ticks — proxy solido, nao a
+   fonte. Fecha o item aberto desde 08-18.
+3d. **Consertar o gravador de CSV.** `S-EA-Pullback_Live.mq5` filtra por `InpMagic`
+   e nao grava as pernas da piramide nem o fechamento forcado de fim de teste.
+   Ou grava, ou os relatorios `.htm` passam a ser versionados.
 4. **`InpHistMax = 2,20` porta?** E' o segundo parametro nao adimensional do EA.
    Testar em outro instrumento antes de chamar o desenho de portavel.
 5. **Base historica independente de corretora (Dukascopy)** — 4 anos, custom symbol,
