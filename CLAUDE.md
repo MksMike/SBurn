@@ -612,6 +612,14 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     rodadas de 2026-08-18** — e sem DD nao ha' ret/DD, que e' o criterio de
     avaliacao da piramide. Nunca concluir "o teste falhou" pela ausencia do
     relatorio: conferir `Tester\logs\` antes.
+17b. **Assimetria em PONTOS premia volatilidade por construcao.** Grupo mais
+    volatil tem MFE maior E MAE maior: a diferenca cresce so' por escala, sem
+    vantagem nenhuma. Medido em 2026-08-19 na triagem de sensores — em pontos,
+    8 sensores "passavam" e a familia `vol` inteira estava entre eles; em ATR,
+    tres cairam e dois entraram, e `est_micro` foi de 5 para 3 meses de
+    consistencia. **Reportar assimetria sempre em ATR.** Corolario que me pegou:
+    o custo de 260 pts vale **0,048 ATR** — um crivo "acima do custo" escrito em
+    pontos parece exigente e em ATR nao filtra quase nada (lei 4).
 18. **Falha ao armar o breakeven nao entra em NENHUM contador.** A linha de resumo
     reporta `sinal/contexto/abrir/fechar`; BE nao esta' la'. `g_tentBE` e' por
     posicao e o `Print` so' sai na 1a tentativa. Pior: apos `InpMaxTentBE` falhas
@@ -688,6 +696,14 @@ nao mais o proximo experimento interessante.
 
 ### Depois
 
+5b. ~~Analisar os seis sensores ja' gravados~~ — **TRIAGEM FEITA em 2026-08-19**,
+   `docs\S-Doc-Retrato_Sensores.md`. O CSV de 712 sinais que se citava era inutil
+   duas vezes: janeiro inteiro E `SIG_TMO1` (hipotese morta). Coleta refeita com
+   `SIG_SP` na janela valida: **568 sinais, 7 meses, distribuicao uniforme**.
+   Sobreviveram ao crivo: `vol_std` (+0,606 ATR, 6/7 meses) e `vol_eff`
+   (Efficiency Ratio, +0,367, 5/7) na mesma direcao, mais tres com sinal
+   invertido. **E' peneira, nao achado** — ~20 sensores testados, sem correcao
+   para comparacoes multiplas. Proximo passo e' pre-registrar UMA hipotese.
 6. **Estrutura de mercado** (`est_micro`/`est_macro`/`est_acordo`, ja' gravadas) —
    medir cada componente ISOLADO. Voto ponderado so' depois: peso e' parametro, e
    parametro sem medicao viola a R1.
