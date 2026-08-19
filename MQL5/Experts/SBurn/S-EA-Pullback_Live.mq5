@@ -6,7 +6,7 @@
 //|             S-Ind-ScalpPullback.ex5  (sempre)                     |
 //|             S-Ind-TMO_Scalper.ex5    (se usar candidato B/C/D)    |
 //| ASSINATURA no log ao iniciar (prova de identidade):               |
-//|   "S-EA-Pullback_Live v2.02 | cand=... TF=... SPTF=..."           |
+//|   "S-EA-Pullback_Live v2.03 | cand=... TF=... SPTF=..."           |
 //+------------------------------------------------------------------+
 //| S-EA-Pullback_Live.mq5 — EA OPERACIONAL DO PROJETO SBURN          |
 //|                                                                    |
@@ -48,6 +48,32 @@
 //|    dispararia: recalibrar para a mediana daquela conta.            |
 //|                                                                    |
 //| CHANGELOG                                                          |
+//|  v2.03 - CORRECAO da identificacao do ticket da adicao da piramide |
+//|   introduzida na v2.02 (a piramide segue DESLIGADA por padrao).    |
+//|   [B16] a busca pelo DEAL desta ordem (ResultDeal -> HistorySelect  |
+//|    -> DEAL_POSITION_ID) FALHAVA no tester: logo apos o envio da    |
+//|    ordem o deal ainda nao esta disponivel para HistorySelect,      |
+//|    entao posId ficava 0 e o ticket nao era achado. Medido no       |
+//|    backtest da v2.02: adicoes=106 contra falhas=234 — a maior      |
+//|    parte das adicoes rodou SEM breakeven, so' com o stop inicial.  |
+//|    A varredura antiga, fragil em teoria, achava o ticket na        |
+//|    pratica. Agora o ticket vem de ResultOrder(): em conta HEDGING  |
+//|    o ticket da POSICAO e' igual ao ticket da ORDEM de abertura, e  |
+//|    ele existe na hora, sem depender do historico estar             |
+//|    sincronizado. Dois fallbacks: (2) ResultDeal +                  |
+//|    DEAL_POSITION_ID, o metodo da v2.02; (3) varredura por          |
+//|    POSITION_MAGIC pegando a posicao MAIS RECENTE (maior            |
+//|    POSITION_TIME) e ignorando ticket ja' atribuido a outra adicao  |
+//|    — pegar "a primeira encontrada" era o defeito do [B14].         |
+//|   [B17] g_pirFalhas somava dois casos de implicacao OPOSTA: ordem  |
+//|    REJEITADA (a adicao nao existe) e adicao ABERTA mas nao         |
+//|    identificada (existe e fica sem BE). Agora sao dois contadores  |
+//|    no log: rejeitadas= e sem_ticket=. Alem disso a rejeicao era    |
+//|    contada e impressa A CADA TICK enquanto o alvo do passo         |
+//|    continuasse valido (g_pirAbertas nao avanca quando a ordem      |
+//|    falha) — por isso 234 podia passar de 106. Agora conta uma      |
+//|    unica vez por adicao, via g_pirRejCont[].                       |
+//|   NAO muda nenhum default nem toca na estrategia principal.        |
 //|  v2.02 - AUDITORIA da piramide (que segue DESLIGADA por padrao).   |
 //|   [B14] o ticket da adicao era achado por varredura, e a varredura |
 //|    aceitava qualquer posicao do magic da piramide aberta depois da |
@@ -150,7 +176,7 @@
 //|   Medir essa divergencia e' o proposito deste EA.                  |
 //+------------------------------------------------------------------+
 #property copyright "SBurn"
-#property version   "2.02"
+#property version   "2.03"
 #property strict
 
 #property tester_indicator "SBurn\\S-Ind-ScalpPullback.ex5"
@@ -273,11 +299,13 @@ double   g_pirBidEnt[8];       // BID de entrada de cada adicao (p/ o BE dela)
 double   g_pirMfe[8];          // excursao favoravel de cada adicao
 bool     g_pirArm[8];          // BE da adicao armado?
 ulong    g_pirTicket[8];       // ticket de cada adicao
+bool     g_pirRejCont[8];      // [B17] rejeicao desta adicao ja contada?
 
 //--- diagnostico
 long     g_nOps=0, g_falhaSig=0, g_falhaCtx=0, g_falhaAbrir=0, g_falhaFechar=0;
 long     g_blockSpread=0, g_vetoRegime=0, g_vetoConflu=0, g_vetoHist=0;
-long     g_r2Disparos=0, g_r2Expirados=0, g_pirAdicoes=0, g_pirFalhas=0;
+long     g_r2Disparos=0, g_r2Expirados=0, g_pirAdicoes=0;
+long     g_pirRejeitadas=0, g_pirSemTicket=0;  // [B17] casos opostos, contados separados
 long     g_saidaBE=0, g_saidaStop=0, g_saidaSinal=0;
 
 //+------------------------------------------------------------------+
@@ -571,9 +599,16 @@ void PiramideAbrir(const int k)
              : g_tradePir.Sell(vol, _Symbol, 0.0, sl, 0.0, "SBurn piramide");
    if(!ok)
    {
-      g_pirFalhas++;
-      PrintFormat("Piramide: falha ao abrir adicao %d: %d %s", k + 1,
-                  g_tradePir.ResultRetcode(), g_tradePir.ResultRetcodeDescription());
+      //--- [B17] g_pirAbertas NAO avanca quando a ordem falha, entao o alvo do
+      //    passo continua valido e PiramideAbrir era chamada — e contada — a
+      //    cada tick. Conta e imprime UMA vez por adicao.
+      if(!g_pirRejCont[k])
+      {
+         g_pirRejCont[k] = true;
+         g_pirRejeitadas++;
+         PrintFormat("Piramide: ordem da adicao %d REJEITADA: %d %s", k + 1,
+                     g_tradePir.ResultRetcode(), g_tradePir.ResultRetcodeDescription());
+      }
       return;
    }
    g_pirBidEnt[k] = bid;
@@ -581,37 +616,71 @@ void PiramideAbrir(const int k)
    g_pirArm[k]    = false;
    g_pirTicket[k] = 0;
 
-   //--- [B14] o ticket da adicao vem do DEAL DESTA ordem, nao de varredura.
-   //    A varredura antiga aceitava qualquer posicao do magic da piramide
-   //    aberta depois da principal — e TODAS as adicoes da sequencia
-   //    satisfazem isso. A ordem da lista de posicoes do MT5 nao e'
-   //    garantidamente cronologica, entao g_pirTicket[k] podia apontar para
-   //    OUTRA adicao: o breakeven de uma movia o stop da outra, e a adicao
-   //    certa ficava sem BE. POSITION_IDENTIFIER e' unico e resolve.
-   ulong posId = 0;
-   ulong deal  = g_tradePir.ResultDeal();
-   if(deal != 0 && HistorySelect(TimeCurrent() - 300, TimeCurrent() + 60))
-      posId = (ulong)HistoryDealGetInteger(deal, DEAL_POSITION_ID);
-   if(posId != 0)
+   //--- [B16] identificacao do ticket, do mais confiavel para o menos.
+   //    A v2.02 dependia do DEAL desta ordem ja' estar no historico; no tester
+   //    ele nao esta logo apos o envio, o posId ficava 0 e a adicao seguia sem
+   //    BE. Em conta HEDGING o ticket da POSICAO e' igual ao ticket da ORDEM de
+   //    abertura, e ResultOrder() devolve isso na hora.
+   ulong tk   = 0;
+   ulong ord  = g_tradePir.ResultOrder();
+   ulong deal = g_tradePir.ResultDeal();
+
+   //--- 1) ordem DESTA requisicao (caminho normal em hedging)
+   if(ord != 0 && PositionSelectByTicket(ord) &&
+      PositionGetInteger(POSITION_MAGIC) == (long)InpPirMagic)
+      tk = ord;
+
+   //--- 2) deal DESTA requisicao -> DEAL_POSITION_ID (metodo da v2.02)
+   if(tk == 0 && deal != 0 && HistorySelect(TimeCurrent() - 300, TimeCurrent() + 60))
    {
+      ulong posId = (ulong)HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+      if(posId != 0)
+      {
+         for(int i = PositionsTotal() - 1; i >= 0; i--)
+         {
+            ulong t = PositionGetTicket(i);
+            if(t == 0) continue;
+            if((ulong)PositionGetInteger(POSITION_IDENTIFIER) != posId) continue;
+            tk = t;
+            break;
+         }
+      }
+   }
+
+   //--- 3) varredura por magic: a posicao MAIS RECENTE (maior POSITION_TIME),
+   //    ignorando ticket ja' atribuido a outra adicao. Pegar "a primeira
+   //    encontrada" era exatamente o defeito do [B14].
+   if(tk == 0)
+   {
+      datetime melhorT  = 0;
+      ulong    melhorTk = 0;
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
          ulong t = PositionGetTicket(i);
          if(t == 0) continue;
-         if((ulong)PositionGetInteger(POSITION_IDENTIFIER) != posId) continue;
-         g_pirTicket[k] = t;
-         break;
+         if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+         if(PositionGetInteger(POSITION_MAGIC) != (long)InpPirMagic) continue;
+         bool jaUsado = false;
+         for(int j = 0; j < k; j++) if(g_pirTicket[j] == t) { jaUsado = true; break; }
+         if(jaUsado) continue;
+         datetime pt = (datetime)PositionGetInteger(POSITION_TIME);
+         if(pt > melhorT || (pt == melhorT && t > melhorTk)) { melhorT = pt; melhorTk = t; }
       }
+      tk = melhorTk;
    }
+   g_pirTicket[k] = tk;
+
    if(g_pirTicket[k] == 0)
    {
       //--- [B15] a falha de identificacao era SILENCIOSA: a adicao existia,
-      //    o loop do BE a pulava para sempre (g_pirTicket==0) e ela seguia
-      //    so' com o stop inicial. Agora conta e aparece no log.
-      g_pirFalhas++;
-      PrintFormat("Piramide: adicao %d aberta mas NAO identificada (deal=%s). "
-                  "Ela fica com o stop inicial e SEM breakeven.",
-                  k + 1, IntegerToString((long)deal));
+      //    o loop do BE a pulava para sempre (g_pirTicket==0) e ela seguia so'
+      //    com o stop inicial. Conta separado da rejeicao [B17] e vai para o
+      //    log. No maximo uma vez por adicao: g_pirAbertas avanca logo abaixo
+      //    e este slot nao volta a ser aberto.
+      g_pirSemTicket++;
+      PrintFormat("Piramide: adicao %d aberta mas NAO identificada "
+                  "(ordem=%s deal=%s). Ela fica com o stop inicial e SEM breakeven.",
+                  k + 1, IntegerToString((long)ord), IntegerToString((long)deal));
    }
    g_pirAbertas++;
    g_pirAdicoes++;
@@ -633,7 +702,8 @@ void PiramideFechar()
       g_tradePir.PositionClose(t, InpSlippage);
    }
    g_pirAtiva = false; g_pirAbertas = 0;
-   for(int k = 0; k < 8; k++) { g_pirTicket[k] = 0; g_pirArm[k] = false; g_pirMfe[k] = 0; }
+   for(int k = 0; k < 8; k++)
+   { g_pirTicket[k] = 0; g_pirArm[k] = false; g_pirMfe[k] = 0; g_pirRejCont[k] = false; }
 }
 
 //+------------------------------------------------------------------+
@@ -830,7 +900,7 @@ int OnInit()
 
    AdotaPosicao();
 
-   PrintFormat("S-EA-Pullback_Live v2.02 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
+   PrintFormat("S-EA-Pullback_Live v2.03 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
                "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | R2=%s "
                "piramide=%s(inicio %.1f passo %.1f max %d)",
                EnumToString(InpCandidato), g_usaConflu?"ON":"off", g_usaHist?"ON":"off",
@@ -847,8 +917,9 @@ void OnDeinit(const int reason)
    PrintFormat("=== %s: %d operacoes | saidas: BE=%d STOP=%d SINAL=%d ===",
                EnumToString(InpCandidato), (int)g_nOps,
                (int)g_saidaBE, (int)g_saidaStop, (int)g_saidaSinal);
-   PrintFormat("R2: reentradas=%d expiradas=%d | piramide: adicoes=%d falhas=%d",
-               (int)g_r2Disparos, (int)g_r2Expirados, (int)g_pirAdicoes, (int)g_pirFalhas);
+   PrintFormat("R2: reentradas=%d expiradas=%d | piramide: adicoes=%d rejeitadas=%d sem_ticket=%d",
+               (int)g_r2Disparos, (int)g_r2Expirados, (int)g_pirAdicoes,
+               (int)g_pirRejeitadas, (int)g_pirSemTicket);
    PrintFormat("vetos: regime=%d conflu=%d hist=%d spread=%d | "
                "falhas: sinal=%d contexto=%d abrir=%d fechar=%d",
                (int)g_vetoRegime, (int)g_vetoConflu, (int)g_vetoHist, (int)g_blockSpread,
