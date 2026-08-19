@@ -527,13 +527,33 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     — por isso MFE/MAE e ATR de barra ficam normais — e **inventa o caminho
     intraminuto**, que e' onde o BE e o stop vivem.
 
-    **XAUUSDm mai-ago (v1.05):** p50 61-65, p90 202-236 — homogeneo, sem
-    anomalia. O export comeca em 2026-05-14 e **nao alcanca janeiro no XAUUSDm**.
-    Nos 4 meses que se sobrepoem os dois feeds sao praticamente o mesmo
-    (p50 65/61/61/65 contra 66/61/60/65; p90 236/218/202/230 contra
-    236/210/200/221), o que torna muito provavel que janeiro do XAUUSDm tenha o
-    mesmo defeito — mas isso e' **inferencia, nao medicao**. Para fechar:
-    exportar XAUUSDm de 2026.01.01 a 2026.05.14.
+    **XAUUSDm 2026.02.17 - 08.19 (v1.05): a JANELA DE REFERENCIA INTEIRA passa,
+    nos DOIS canais, no proprio simbolo.**
+
+    | mes | p50 spread | trocas/1M | passo p50 | **passo p90** | ticks/min |
+    |---|---|---|---|---|---|
+    | 2026.02 (17-28) | 360 | 26.697 | 85 | 275 | 175,2 |
+    | 2026.03 | 360 | 9.431 | 79 | 249 | 405,4 |
+    | 2026.04 | 280 | 18.278 | 68 | 247 | 236,6 |
+    | 2026.05 | 280 | 6.457 | 66 | 238 | 208,7 |
+    | 2026.06 | 260 | 40.703 | 61 | 218 | 264,8 |
+    | 2026.07 | 240 | 1.750 | 61 | 202 | 214,7 |
+    | 2026.08 | 260 | 6.216 | 65 | 230 | 197,4 |
+
+    Referencia p90 = 238; razoes de 0,85 a 1,16. **Zero alertas.** Marco sai como
+    nota informativa (405 ticks/min = 1,89x, mas p90 1,05x = salto normal): mes
+    movimentado, nao reconstruido — exatamente o falso positivo que a v1.05
+    conserta.
+
+    **Consistencia entre dois exports independentes:** os meses 06, 07 e 08
+    aparecem nos dois arquivos e dao numeros **identicos** (61/218, 61/202,
+    65/230). Maio difere por 1 ponto so' porque o export novo inclui 01-13/05.
+
+    **LACUNA QUE RESTA: 2026.01.01 - 2026.02.16 no XAUUSDm nao tem export.** A
+    condenacao de 2026.01 **neste simbolo** segue por INFERENCIA a partir do
+    XAUUSD@Real3 — inferencia forte (nos meses sobrepostos os dois feeds sao
+    praticamente o mesmo), mas nao medicao. Para fechar: exportar XAUUSDm de
+    2026.01.01 a 2026.02.17.
     (O export baixado comeca em 2026-05-14, entao 2026.01 do XAUUSDm ainda nao
     passou por este teste na fonte — segue apoiado no passo do BID e no proxy de
     janelas de 75 ticks.)
