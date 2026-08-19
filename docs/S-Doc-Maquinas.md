@@ -62,7 +62,7 @@ do PowerShell SEGUE o link e apaga os fontes.
 | Apelido | COMPUTERNAME | Perfil Windows | Repositorio | Status |
 |---|---|---|---|---|
 | **PC-Escritorio** | `MIKE-PC` | `Mike Inoue` | `C:\dev\SBurn` | ativo, parametrizado em 2026-08-18 |
-| **PC-Casa** | `DESKTOP` | `mikem` | `C:\dev\SBurn` | ativo, registrado em 2026-08-19; **falta o alias** |
+| **PC-Casa** | `DESKTOP` | `mikem` | `C:\dev\SBurn` | ativo, parametrizado em 2026-08-19 |
 
 ### Perfis vistos no historico do repositorio (ainda sem apelido)
 
@@ -158,20 +158,26 @@ proveniencia propria, declarada — nunca uma troca silenciosa (R3).
 | Repositorio | `C:\dev\SBurn` (branch `main`, sincronizado com o remoto em 2026-08-19) |
 | MT5 EXNESS | `C:\Program Files\MetaTrader 5 EXNESS` |
 | Pasta de dados | `C:\Users\mikem\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06` |
-| Alias `C:\MT5\Exness` | **AUSENTE** — pendencia, ver abaixo |
+| Alias `C:\MT5\Exness` | criado em 2026-08-19 (junction) |
 | Junctions do projeto | os 3 existem, no formato ANTIGO (direto na pasta de dados, sem passar pelo alias) e enxergam os fontes do repositorio |
-| Python | presente, **sem `pandas` nem `scipy`** |
-| `.ex5` no repositorio | de 2026-08-18 03:10, compilados da **v2.01** — ESTAO VELHOS, o fonte agora e' v2.05 |
+| Python | 3.x + pandas 3.0.5 + scipy 1.17.1 |
+| `.ex5` no repositorio | recompilados em 2026-08-19, em dia com o fonte |
 
 ### 5.1 Pendencias desta maquina
 
-1. **Criar o alias** `C:\MT5\Exness` -> pasta de dados. Sem ele o
-   `.vscode\tasks.json` (que aponta para `C:\MT5\Exness\MQL5`) nao compila.
-   `powershell -ExecutionPolicy Bypass -File setup\S-Ps-Setup_Maquina.ps1`
-2. **Recompilar os 4 fontes** — indicadores primeiro, EAs por ultimo. Os `.ex5`
-   presentes sao da v2.01 e NAO tem as correcoes [B16]/[B17] nem o default
-   `InpPirEnabled=false` da v2.05.
-3. **`python -m pip install pandas scipy`** — `S-Py-Perfil_Spread.py` nao roda sem.
+**Nenhuma.** A maquina compila, roda backtest por linha de comando e reproduz a
+referencia (ver `docs\S-Doc-Reproduzir.md`). Resolvido em 2026-08-19: alias
+criado, 4 fontes recompilados (0 erros) e `pandas`/`scipy` instalados.
+
+O alias foi criado pelo cmdlet nativo, equivalente ao que o script de setup faz
+(`New-Item -ItemType Junction` NAO exige administrador):
+
+    New-Item -ItemType Junction -Path "C:\MT5\Exness" `
+             -Target "$env:APPDATA\MetaQuotes\Terminal\<hash>"
+
+Verificado compilando pelo caminho exato da task do VS Code
+(`/inc:C:\MT5\Exness\MQL5`): 0 erros, 0 warnings, e os tres junctions do
+projeto resolvem atraves do alias. `Ctrl+Shift+B` operante.
 
 ### 5.2 O que esta maquina DESBLOQUEIA
 
