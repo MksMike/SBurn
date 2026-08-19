@@ -183,9 +183,10 @@ novo por `InpR2Calma` barras, CONGELA o topo do range formado desde o scratch, e
 reentrada dispara no rompimento desse topo. E' confirmacao de ESTADO, nao relogio —
 coerente com a lei 1. Medido: **+19% de lucro, ret/DD de 8,8x para 9,1x**.
 
-**Piramide (v2.00/v2.01) — estrategia SECUNDARIA, magic e lote proprios, DESLIGADA
-por padrao.** Adiciona posicoes conforme o movimento anda a favor, cada uma com BE e
-stop proprios. Inicio em 1,0xATR: +64% de lucro mas ret/DD de 9,1x para 6,3x. A v2.01
+**Piramide (v2.00/v2.01) — estrategia SECUNDARIA, magic e lote proprios. LIGADA
+por padrao desde a v2.04** (era desligada; ver o bloco de 2026-08-19 abaixo).
+Adiciona posicoes conforme o movimento anda a favor, cada uma com BE e stop
+proprios. Inicio em 1,0xATR: +64% de lucro mas ret/DD de 9,1x para 6,3x. A v2.01
 separou ONDE comeca de QUAL o espacamento: inicio 2,0xATR da' $2.333 / DD $226 /
 ret/DD 10,3x contra $2.279 / DD $360 / 6,3x do inicio 1,0 — otimo NO MEIO da grade,
 com queda dos dois lados (assinatura de estrutura, nao de pico de sobreajuste).
@@ -207,6 +208,27 @@ com queda dos dois lados (assinatura de estrutura, nao de pico de sobreajuste).
 > O controle `InpPirEnabled=false` ($1.494,35 / DD $187,34 / PF 4,85 / 160
 > operacoes) **continua valido**: `[B14]` e `[B15]` vivem inteiramente dentro do
 > caminho da piramide, que fica dormente no default.
+
+> **RESOLVIDO em 2026-08-19 — o `[B14]` nunca mudou numero nenhum.** Medido, nao
+> deduzido: v2.01 e v2.02 dao o mesmo saldo final (12616.32) no log de 2026-08-18,
+> e v2.02 e v2.03 dao o mesmo (12617.25) hoje. O log da rodada v2.02 tem **zero**
+> linhas de "NAO identificada" — a busca por `DEAL_POSITION_ID` acertou o ticket
+> nas 106 adicoes, e nenhuma rodou sem breakeven. As "234 falhas" eram 234
+> rejeicoes `10018 market closed` de um unico dia (2026.01.06), contadas a cada
+> tick. A v2.03 separou os contadores (`rejeitadas` / `sem_ticket`).
+>
+> **Numero corrente, medido na v2.03 e reproduzido pela v2.02** — XAUUSDm M5,
+> 2026.01.01-**08.18**, ticks reais 100%, 0.01 lote, C_HIST:
+>
+> | Config | Lucro | DD capital | PF | Negociacoes | Fator de recuperacao |
+> |---|---|---|---|---|---|
+> | piramide ON | $2.617,25 | $426,52 | 4,63 | 254 | 6,14 |
+> | so' a principal | $1.387,20 | $187,34 | 4,64 | 148 | 7,40 |
+>
+> +$1.230,05 de lucro por +$239,18 de DD: ~5,1x na margem, contra 7,4x da
+> principal. **Decisao do Mike em 2026-08-19: ligar por padrao** (v2.04), com o
+> trade-off na mesa. Segue **hipotese medida, nao validada** — 8 meses, e a janela
+> inclui 2026.01, que ainda carrega a ressalva da armadilha 13.
 
 **Em aberto:** `SIG_PBSHALLOW` (pullback raso dentro do regime, sem exigir retorno ao
 canal PAC) — implementado no EA de medicao v1.20, **ainda nao rodado**.

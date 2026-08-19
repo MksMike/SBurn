@@ -6,7 +6,7 @@
 //|             S-Ind-ScalpPullback.ex5  (sempre)                     |
 //|             S-Ind-TMO_Scalper.ex5    (se usar candidato B/C/D)    |
 //| ASSINATURA no log ao iniciar (prova de identidade):               |
-//|   "S-EA-Pullback_Live v2.03 | cand=... TF=... SPTF=..."           |
+//|   "S-EA-Pullback_Live v2.04 | cand=... TF=... SPTF=..."           |
 //+------------------------------------------------------------------+
 //| S-EA-Pullback_Live.mq5 — EA OPERACIONAL DO PROJETO SBURN          |
 //|                                                                    |
@@ -19,8 +19,14 @@
 //|           degrau zero +4.237/trade, degrau +0.05xATR +2.541).      |
 //|  SAIDA 3: proximo sinal do SP (qualquer direcao) fecha a posicao.  |
 //|                                                                    |
-//| DEFAULTS = MELHOR CONFIGURACAO MEDIDA (backtest real, ticks reais, |
-//| XAUUSDm M5, 2026.01.01-08.12, 0.01 lote):                          |
+//| DEFAULTS: a ESTRATEGIA PRINCIPAL abaixo, e desde a v2.04 tambem    |
+//| a PIRAMIDE LIGADA. A tabela seguinte e a da PRINCIPAL SOZINHA —    |
+//| ela NAO descreve mais o default. O numero do default esta na       |
+//| entrada v2.04 do CHANGELOG. Para reproduzir a tabela, rodar com    |
+//| InpPirEnabled=false.                                               |
+//|                                                                    |
+//| Principal sozinha (backtest real, ticks reais, XAUUSDm M5,         |
+//| 2026.01.01-08.12, 0.01 lote):                                      |
 //|                                                                    |
 //|   config                     n   media$   total$    DD$   ret/DD   |
 //|   A sem filtros            370    +3.15  +1163.82  206.33   5.6x   |
@@ -48,6 +54,37 @@
 //|    dispararia: recalibrar para a mediana daquela conta.            |
 //|                                                                    |
 //| CHANGELOG                                                          |
+//|  v2.04 - A PIRAMIDE PASSA A VIR LIGADA POR PADRAO.                 |
+//|   InpPirEnabled: false -> true. E o UNICO default alterado; nenhum |
+//|   outro input mudou e nenhuma linha de logica foi tocada.          |
+//|   DECISAO DO MIKE em 2026-08-19, com o trade-off na mesa. O que a  |
+//|   medicao diz (XAUUSDm M5, 2026.01.01-08.18, ticks reais 100%,     |
+//|   0.01 lote, C_HIST, mesma janela para as duas):                   |
+//|                                                                    |
+//|     config          lucro    DD capital   PF    negociacoes        |
+//|     principal so  $1387.20     $187.34   4.64      148             |
+//|     + piramide    $2617.25     $426.52   4.63      254             |
+//|                                                                    |
+//|   Ou seja: +$1230.05 de lucro por +$239.18 de drawdown de capital. |
+//|   Na margem a piramide rende ~5,1x sobre o DD que ela adiciona,    |
+//|   contra 7,4x da principal — e o fator de recuperacao do conjunto  |
+//|   cai de 7,40 para 6,14. E TROCA CONSCIENTE: mais participacao na  |
+//|   tendencia por menos eficiencia. Nao e melhora em toda dimensao.  |
+//|   (Os DDs nao somam linearmente — os picos podem nao ser           |
+//|   simultaneos, entao os 5,1x na margem sao aproximacao.)           |
+//|                                                                    |
+//|   SIZING — agora vale por padrao, nao mais so se alguem ligar:     |
+//|   podem existir ate InpPirMaxPos posicoes simultaneas ALEM da      |
+//|   principal, cada uma com stop proprio de InpPirStopATR x ATR.     |
+//|   O risco agregado NAO e o de uma posicao. Dimensionar sobre o     |
+//|   total, e lembrar que o stop escala com o ATR (p90 = 2x a         |
+//|   mediana).                                                        |
+//|                                                                    |
+//|   STATUS: hipotese medida, NAO validada. 8 meses de janela, e a    |
+//|   janela inclui 2026.01, que ainda nao passou pelo teste de        |
+//|   trocas/1M no XAUUSDm (armadilha 13). Comparacao entre as duas    |
+//|   configuracoes e valida (o vies e comum as duas); o nivel         |
+//|   absoluto de ambas, nao.                                          |
 //|  v2.03 - CORRECAO da identificacao do ticket da adicao da piramide |
 //|   introduzida na v2.02 (a piramide segue DESLIGADA por padrao).    |
 //|   [B16] a busca pelo DEAL desta ordem (ResultDeal -> HistorySelect  |
@@ -176,7 +213,7 @@
 //|   Medir essa divergencia e' o proposito deste EA.                  |
 //+------------------------------------------------------------------+
 #property copyright "SBurn"
-#property version   "2.03"
+#property version   "2.04"
 #property strict
 
 #property tester_indicator "SBurn\\S-Ind-ScalpPullback.ex5"
@@ -222,7 +259,7 @@ input int             InpR2Validade  = 120;   // Validade do monitoramento, barr
 input int             InpR2MaxPorSeq = 1;     // Maximo de reentradas por sequencia
 
 input group "=== ESTRATEGIA SECUNDARIA: piramide (independente) ==="
-input bool            InpPirEnabled  = false; // Ligar a piramide
+input bool            InpPirEnabled  = true;  // Ligar a piramide (v2.04: ON)
 input double          InpPirLots     = 0.01;  // Volume POR ADICAO
 input ulong           InpPirMagic    = 20260901; // Magic proprio da piramide
 input double          InpPirInicioATR = 2.00; // 1a adicao em, x ATR (medido: 2.0)
@@ -900,7 +937,7 @@ int OnInit()
 
    AdotaPosicao();
 
-   PrintFormat("S-EA-Pullback_Live v2.03 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
+   PrintFormat("S-EA-Pullback_Live v2.04 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
                "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | R2=%s "
                "piramide=%s(inicio %.1f passo %.1f max %d)",
                EnumToString(InpCandidato), g_usaConflu?"ON":"off", g_usaHist?"ON":"off",

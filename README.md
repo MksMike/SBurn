@@ -31,7 +31,7 @@ falta nele para reproduzir o resultado de referencia.
 |---|---|---|
 | `MQL5/Indicators/SBurn/S-Ind-ScalpPullback.mq5` | 2.02 | Gatilho (buf 26) e regime (buf 27). Coracao da estrategia. |
 | `MQL5/Indicators/SBurn/S-Ind-TMO_Scalper.mq5` | 4.02 | Sensores de contexto: zona (14), confluencia (15), ATR (16), histograma (0-2). |
-| `MQL5/Experts/SBurn/S-EA-Pullback_Live.mq5` | 2.02 | EA operacional. Principal (com reentrada R2) + piramide opcional, magics separados. |
+| `MQL5/Experts/SBurn/S-EA-Pullback_Live.mq5` | 2.04 | EA operacional. Principal (com reentrada R2) + piramide, magics separados. Desde a v2.04 a piramide vem **LIGADA** por padrao. |
 | `MQL5/Experts/SBurn/S-EA-Test_ConsistencyGate.mq5` | 1.28 | EA de MEDICAO (nao opera). 99 colunas por sinal. |
 | `MQL5/Include/SBurn/S-Include-ConsistencyGate.mqh` | 1.02 | Gate tick-based (relogio de mercado). |
 | `MQL5/Include/SBurn/S-Include-MovConsistency.mqh` | — | Sensor do MKS-Engine (copia fiel). |
@@ -46,8 +46,20 @@ falta nele para reproduzir o resultado de referencia.
 
 ## Reproduzir o resultado de referencia
 
-`S-EA-Pullback_Live` com os defaults, XAUUSDm M5, 2026.01.01-08.12, "Every tick based
-on real ticks", 0.01 lote. Esperado: **137 trades, +$1.308,59, DD $49,25, PF 5,83**.
+`S-EA-Pullback_Live` com os defaults, XAUUSDm M5, **2026.01.01-08.18**, "Every tick
+based on real ticks", 0.01 lote. Como a v2.04 liga a piramide por padrao, sao dois
+numeros, medidos na mesma janela:
+
+| Configuracao | Lucro | DD capital | PF | Negociacoes |
+|---|---|---|---|---|
+| defaults (piramide ON) | +$2.617,25 | $426,52 | 4,63 | 254 |
+| `InpPirEnabled=false` (so' a principal) | +$1.387,20 | $187,34 | 4,64 | 148 |
+
+A piramide troca eficiencia por participacao: o fator de recuperacao do conjunto cai
+de 7,40 para 6,14. Decisao consciente, registrada em `docs/CHECKPOINT.md`.
+
+O numero antigo de referencia (**137 trades, +$1.308,59, DD $49,25, PF 5,83**) e' da
+janela 2026.01.01-**08.12**, mais curta, e continua valido para ela.
 
 Trocar `InpCandidato` (A_TITULAR / B_CONFLU / C_HIST / D_COMBO) para comparar
 variantes. E' o unico input a mudar entre rodadas.
