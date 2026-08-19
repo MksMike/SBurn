@@ -159,8 +159,9 @@ proveniencia propria, declarada — nunca uma troca silenciosa (R3).
 | MT5 EXNESS | `C:\Program Files\MetaTrader 5 EXNESS` |
 | Pasta de dados | `C:\Users\mikem\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06` |
 | Alias `C:\MT5\Exness` | criado em 2026-08-19 (junction) |
-| Junctions do projeto | os 3 existem, no formato ANTIGO (direto na pasta de dados, sem passar pelo alias) e enxergam os fontes do repositorio |
+| Junctions do projeto | os 3 existem e apontam para `C:\dev\SBurn\MQL5\<pasta>\SBurn` — identico ao que o script de setup cria |
 | Python | 3.x + pandas 3.0.5 + scipy 1.17.1 |
+| Identidade do git | `user.name`/`user.email` locais definidos em 2026-08-19 |
 | `.ex5` no repositorio | recompilados em 2026-08-19, em dia com o fonte |
 
 ### 5.1 Pendencias desta maquina
@@ -178,6 +179,29 @@ O alias foi criado pelo cmdlet nativo, equivalente ao que o script de setup faz
 Verificado compilando pelo caminho exato da task do VS Code
 (`/inc:C:\MT5\Exness\MQL5`): 0 erros, 0 warnings, e os tres junctions do
 projeto resolvem atraves do alias. `Ctrl+Shift+B` operante.
+
+`setup\S-Ps-Setup_Maquina.ps1` rodado em 2026-08-19 nesta maquina: **todos os
+itens `[ok]`, zero problemas**. Nao ha' divergencia de layout entre PC-Casa e
+PC-Escritorio — os junctions dos dois sao criados no mesmo lugar
+(`<dados>\MQL5\<pasta>\SBurn`) apontando para o mesmo alvo (o repositorio).
+O alias e' usado pelo `.vscode`, nao pelos junctions.
+
+### 5.3 Identidade do git — a divergencia que existia de verdade
+
+Ate' 2026-08-19 esta maquina nao tinha `user.name` local e caia no global
+(`MksMike`), enquanto o PC-Escritorio seguia o procedimento da secao 1
+(`Mike Inoue`). Mesmo e-mail, nome diferente, e o historico ficou partido:
+
+| Autor | Commits | Origem |
+|---|---|---|
+| `Mike Inoue <mike.mks.inoue@gmail.com>` | 23 | PC-Escritorio |
+| `MksMike <mike.mks.inoue@gmail.com>` | 16 | PC-Casa, ate' 2026-08-19 |
+
+Corrigido com `git config --local` (o global fica intacto para outros repos).
+**Historico nao foi reescrito**: os 16 commits antigos seguem com o nome antigo.
+Reescrever exigiria force-push num repositorio usado por duas maquinas, o que
+custa mais do que o problema vale. Do commit desta correcao em diante, um nome
+so'.
 
 ### 5.2 O que esta maquina DESBLOQUEIA
 
