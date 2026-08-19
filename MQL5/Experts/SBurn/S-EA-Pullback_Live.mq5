@@ -6,7 +6,7 @@
 //|             S-Ind-ScalpPullback.ex5  (sempre)                     |
 //|             S-Ind-TMO_Scalper.ex5    (se usar candidato B/C/D)    |
 //| ASSINATURA no log ao iniciar (prova de identidade):               |
-//|   "S-EA-Pullback_Live v2.06 | cand=... TF=... SPTF=..."           |
+//|   "S-EA-Pullback_Live v2.07 | cand=... TF=... SPTF=..."           |
 //+------------------------------------------------------------------+
 //| S-EA-Pullback_Live.mq5 — EA OPERACIONAL DO PROJETO SBURN          |
 //|                                                                    |
@@ -54,6 +54,16 @@
 //|    dispararia: recalibrar para a mediana daquela conta.            |
 //|                                                                    |
 //| CHANGELOG                                                          |
+//|  v2.07 - CORRIGE a varredura da piramide da v2.06, que perdia as   |
+//|   pernas fechadas pelo TESTER no fim do periodo. O deal de saida    |
+//|   desse fechamento e' gerado pela plataforma e vem SEM magic, entao |
+//|   filtrar a SAIDA por DEAL_MAGIC nao o encontrava. Agora a ancora   |
+//|   e' o deal de ENTRADA (unico que o EA criou) e a saida e' pareada  |
+//|   por DEAL_POSITION_ID, sem olhar magic.                            |
+//|   MEDIDO: 63 de 65 pernas antes, 65 de 65 depois. O CSV agora       |
+//|   reconcilia com o relatorio do MT5 pela primeira vez —             |
+//|   141 operacoes e $962,49 dos dois lados.                           |
+//|   Perna sem deal de saida nao e' inventada: e' contada e avisada.   |
 //|  v2.06 - INSTRUMENTACAO. Tres buracos de GRAVACAO. Nenhuma linha   |
 //|   de logica de trading tocada: mesma entrada, mesma saida, mesmo   |
 //|   BE. Verificado reproduzindo a referencia (777.23 / 76 / DD 23.37)|
@@ -276,7 +286,7 @@
 //|   Medir essa divergencia e' o proposito deste EA.                  |
 //+------------------------------------------------------------------+
 #property copyright "SBurn"
-#property version   "2.06"
+#property version   "2.07"
 #property strict
 
 #property tester_indicator "SBurn\\S-Ind-ScalpPullback.ex5"
@@ -1038,7 +1048,7 @@ int OnInit()
 
    AdotaPosicao();
 
-   PrintFormat("S-EA-Pullback_Live v2.06 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
+   PrintFormat("S-EA-Pullback_Live v2.07 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
                "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | R2=%s "
                "piramide=%s(inicio %.1f passo %.1f max %d)",
                EnumToString(InpCandidato), g_usaConflu?"ON":"off", g_usaHist?"ON":"off",
@@ -1097,37 +1107,43 @@ void RegistraPiramideCSV()
    if(!HistorySelect(0, TimeCurrent() + 86400)) return;
 
    int total = HistoryDealsTotal();
+   int abertas = 0;
    for(int i = 0; i < total; i++)
    {
-      ulong dOut = HistoryDealGetTicket(i);
-      if(dOut == 0) continue;
-      if((ulong)HistoryDealGetInteger(dOut, DEAL_MAGIC) != InpPirMagic) continue;
-      if(HistoryDealGetInteger(dOut, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
-      if(HistoryDealGetString(dOut, DEAL_SYMBOL) != _Symbol) continue;
+      //--- ancora no deal de ENTRADA: e' o unico que o EA criou e que carrega
+      //    InpPirMagic com certeza. [v2.07] Filtrar a SAIDA por DEAL_MAGIC
+      //    perdia as pernas fechadas pelo TESTER no fim do periodo: esse deal
+      //    e' gerado pela plataforma e vem SEM magic. Foram 63 de 65 na
+      //    primeira rodada com piramide.
+      ulong dIn = HistoryDealGetTicket(i);
+      if(dIn == 0) continue;
+      if((ulong)HistoryDealGetInteger(dIn, DEAL_MAGIC) != InpPirMagic) continue;
+      if(HistoryDealGetInteger(dIn, DEAL_ENTRY) != DEAL_ENTRY_IN) continue;
+      if(HistoryDealGetString(dIn, DEAL_SYMBOL) != _Symbol) continue;
 
-      ulong pid = (ulong)HistoryDealGetInteger(dOut, DEAL_POSITION_ID);
+      ulong    pid  = (ulong)HistoryDealGetInteger(dIn, DEAL_POSITION_ID);
+      datetime tEnt = (datetime)HistoryDealGetInteger(dIn, DEAL_TIME);
+      double   pEnt = HistoryDealGetDouble(dIn, DEAL_PRICE);
+      int      dir  = (HistoryDealGetInteger(dIn, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
 
-      //--- deal de ABERTURA da mesma posicao
-      datetime tEnt = 0; double pEnt = 0.0; int dir = 0; bool achou = false;
+      //--- deal de SAIDA da mesma posicao, SEM olhar magic
+      datetime tSai = 0; double pSai = 0.0, lucro = 0.0; bool achou = false;
       for(int j = 0; j < total; j++)
       {
-         ulong dIn = HistoryDealGetTicket(j);
-         if(dIn == 0) continue;
-         if((ulong)HistoryDealGetInteger(dIn, DEAL_POSITION_ID) != pid) continue;
-         if(HistoryDealGetInteger(dIn, DEAL_ENTRY) != DEAL_ENTRY_IN) continue;
-         tEnt  = (datetime)HistoryDealGetInteger(dIn, DEAL_TIME);
-         pEnt  = HistoryDealGetDouble(dIn, DEAL_PRICE);
-         dir   = (HistoryDealGetInteger(dIn, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
+         ulong dOut = HistoryDealGetTicket(j);
+         if(dOut == 0) continue;
+         if((ulong)HistoryDealGetInteger(dOut, DEAL_POSITION_ID) != pid) continue;
+         if(HistoryDealGetInteger(dOut, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
+         tSai  = (datetime)HistoryDealGetInteger(dOut, DEAL_TIME);
+         pSai  = HistoryDealGetDouble(dOut, DEAL_PRICE);
+         lucro = HistoryDealGetDouble(dOut, DEAL_PROFIT) +
+                 HistoryDealGetDouble(dOut, DEAL_SWAP) +
+                 HistoryDealGetDouble(dOut, DEAL_COMMISSION);
          achou = true;
          break;
       }
-      if(!achou) continue;
+      if(!achou) { abertas++; continue; }   // perna que nunca fechou: nao inventar saida
 
-      datetime tSai  = (datetime)HistoryDealGetInteger(dOut, DEAL_TIME);
-      double   pSai  = HistoryDealGetDouble(dOut, DEAL_PRICE);
-      double   lucro = HistoryDealGetDouble(dOut, DEAL_PROFIT) +
-                       HistoryDealGetDouble(dOut, DEAL_SWAP) +
-                       HistoryDealGetDouble(dOut, DEAL_COMMISSION);
       int barras = (int)((tSai - tEnt) / PeriodSeconds(PERIOD_CURRENT));
 
       EscreveCSV(TimeToString(tEnt, TIME_DATE|TIME_MINUTES|TIME_SECONDS),
@@ -1143,6 +1159,9 @@ void RegistraPiramideCSV()
                  "PIR", "", "");
       g_linhasPir++;
    }
+   if(abertas > 0)
+      PrintFormat("ATENCAO: %d perna(s) de piramide sem deal de saida — NAO gravadas",
+                  abertas);
 }
 
 //+------------------------------------------------------------------+

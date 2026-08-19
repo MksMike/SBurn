@@ -1,5 +1,5 @@
 # SBurn — Reproduzir a referencia
-**Versao:** 1.0 | **Atualizado:** 2026-08-19
+**Versao:** 1.1 | **Atualizado:** 2026-08-19
 
 Config exata da rodada de referencia e como dispara-la pela linha de comando, sem
 tocar na GUI. Existe porque o checkpoint de 2026-08-19 registra que **nenhum
@@ -131,6 +131,12 @@ desenho (secao 3 da `CLAUDE.md`). `Report=` sem caminho e sem extensao.
    `10018 market closed` (2026.02.02 21:05) e **uma** posicao que nunca armou o
    breakeven (entrada 2026.02.11 20:50). A partir da v2.06 as duas coisas tem
    contador proprio no resumo — ver armadilha 18.
-4. ~~O CSV nao reconcilia com o relatorio~~ — **resolvido na v2.06**: 76 linhas
-   contra 76 negociacoes. O que faltava era o fechamento forcado de fim de teste,
-   agora gravado com `motivo=FIMTESTE`.
+4. ~~O CSV nao reconcilia com o relatorio~~ — **resolvido (v2.06 + v2.07)**.
+   Faltavam o fechamento forcado de fim de teste (agora `motivo=FIMTESTE`) e as
+   pernas da piramide (agora `origem=PIR`). Reconciliacao exata nas duas
+   configuracoes:
+
+   | rodada | CSV | relatorio |
+   |---|---|---|
+   | piramide OFF | 76 operacoes, $777,23 | 76, $777,23 |
+   | piramide ON | 141 operacoes (76 PRIN + 65 PIR), $962,49 | 141, $962,49 |
