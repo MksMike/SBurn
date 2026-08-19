@@ -6,7 +6,7 @@
 //|             S-Ind-ScalpPullback.ex5  (sempre)                     |
 //|             S-Ind-TMO_Scalper.ex5    (se usar candidato B/C/D)    |
 //| ASSINATURA no log ao iniciar (prova de identidade):               |
-//|   "S-EA-Pullback_Live v2.04 | cand=... TF=... SPTF=..."           |
+//|   "S-EA-Pullback_Live v2.05 | cand=... TF=... SPTF=..."           |
 //+------------------------------------------------------------------+
 //| S-EA-Pullback_Live.mq5 — EA OPERACIONAL DO PROJETO SBURN          |
 //|                                                                    |
@@ -54,6 +54,45 @@
 //|    dispararia: recalibrar para a mediana daquela conta.            |
 //|                                                                    |
 //| CHANGELOG                                                          |
+//|  v2.05 - PIRAMIDE DE VOLTA A DESLIGADA POR PADRAO.                 |
+//|   InpPirEnabled: true -> false. Reverte o default da v2.04. Unico  |
+//|   default alterado; nenhuma linha de logica tocada.                |
+//|   MOTIVO: o numero que justificou ligar (marginal 5,14x) veio de   |
+//|   uma janela que comeca em 2026.01, mes reprovado. Re-medido em    |
+//|   2026.02.01-08.18:                                                |
+//|                                                                    |
+//|     config          lucro    DD capital   negoc.                   |
+//|     principal so  $777,23      $187,34      76                     |
+//|     + piramide    $962,49      $426,52     141                     |
+//|                                                                    |
+//|   +$185,26 de lucro por +$239,18 de DD = 0,77x: a piramide adiciona|
+//|   MAIS drawdown do que lucro. Por adicao sao $2,85 contra $10,23 do|
+//|   trade da principal, com o MESMO stop de 3,67xATR e o MESMO lote. |
+//|                                                                    |
+//|   E ha causa medida, nao so correlacao. Em 2026.01 o caminho do BID|
+//|   e anomalamente LISO: 42,5 pts por tick contra 96-106 nos outros  |
+//|   sete meses, 1,86x mais ticks/s, e consistencia                   |
+//|   (|deslocamento|/caminho em 75 ticks) 0,149 contra 0,074-0,113    |
+//|   (p=1,7e-85).                                                     |
+//|                                                                    |
+//|   Cada adicao morre quando o preco encosta de volta no nivel de    |
+//|   entrada dela. Caminho liso = nao encosta = a adicao vira         |
+//|   corredor. Medido na simulacao BID-pura do EA de medicao (colunas |
+//|   pir_b*, sem spread): adicao a 2,0xATR sobrevive 26,9% em janeiro |
+//|   contra 21,5% no resto (p=0,010); a 3,0xATR, 31,6% contra 19,8%   |
+//|   (p=6,8e-05). Sobrevive ao controle por tamanho da perna e a      |
+//|   retirada da semana parabolica de 26-30/01.                       |
+//|                                                                    |
+//|   Ou seja: 84,9% do lucro marginal da piramide veio de um mes cujo |
+//|   defeito de dado premia exatamente o mecanismo que ela monetiza.  |
+//|   Janeiro nao e amostra a favor dela: e ANTI-evidencia.            |
+//|                                                                    |
+//|   LIMITE DESTE NUMERO (R3): o CSV do EA filtra por InpMagic e NAO  |
+//|   grava as pernas da piramide, entao 5,14x -> 0,77x vem do         |
+//|   relatorio do MT5, sem trades de piramide auditaveis no           |
+//|   repositorio. Efeito colateral util: como ops_pirON.csv e         |
+//|   ops_pirOFF.csv sao byte-identicos, esta provado que ligar a      |
+//|   piramide nao altera UM UNICO trade da principal.                 |
 //|  v2.04 - A PIRAMIDE PASSA A VIR LIGADA POR PADRAO.                 |
 //|   InpPirEnabled: false -> true. E o UNICO default alterado; nenhum |
 //|   outro input mudou e nenhuma linha de logica foi tocada.          |
@@ -87,7 +126,7 @@
 //|   absoluto de ambas, nao.                                          |
 //|  v2.03 - CORRECAO da identificacao do ticket da adicao da piramide |
 //|   introduzida na v2.02 (a piramide segue DESLIGADA por padrao).    |
-//|   [B16] a busca pelo DEAL desta ordem (ResultDeal -> HistorySelect  |
+//|   [B16] a busca pelo DEAL desta ordem (ResultDeal -> HistorySelect |
 //|    -> DEAL_POSITION_ID) FALHAVA no tester: logo apos o envio da    |
 //|    ordem o deal ainda nao esta disponivel para HistorySelect,      |
 //|    entao posId ficava 0 e o ticket nao era achado. Medido no       |
@@ -213,7 +252,7 @@
 //|   Medir essa divergencia e' o proposito deste EA.                  |
 //+------------------------------------------------------------------+
 #property copyright "SBurn"
-#property version   "2.04"
+#property version   "2.05"
 #property strict
 
 #property tester_indicator "SBurn\\S-Ind-ScalpPullback.ex5"
@@ -259,7 +298,7 @@ input int             InpR2Validade  = 120;   // Validade do monitoramento, barr
 input int             InpR2MaxPorSeq = 1;     // Maximo de reentradas por sequencia
 
 input group "=== ESTRATEGIA SECUNDARIA: piramide (independente) ==="
-input bool            InpPirEnabled  = true;  // Ligar a piramide (v2.04: ON)
+input bool            InpPirEnabled  = false; // Ligar a piramide (v2.05: OFF)
 input double          InpPirLots     = 0.01;  // Volume POR ADICAO
 input ulong           InpPirMagic    = 20260901; // Magic proprio da piramide
 input double          InpPirInicioATR = 2.00; // 1a adicao em, x ATR (medido: 2.0)
@@ -937,7 +976,7 @@ int OnInit()
 
    AdotaPosicao();
 
-   PrintFormat("S-EA-Pullback_Live v2.04 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
+   PrintFormat("S-EA-Pullback_Live v2.05 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
                "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | R2=%s "
                "piramide=%s(inicio %.1f passo %.1f max %d)",
                EnumToString(InpCandidato), g_usaConflu?"ON":"off", g_usaHist?"ON":"off",
