@@ -29,13 +29,26 @@
 #     Numa conta de spread apertado esse corte aprova ~tudo: o filtro morre,
 #     e com ele a melhor configuracao ja' medida (ret/DD 26,6x).
 #     Ver CLAUDE.md secao 5.3 e fila item 6.
-#  4. Quebra por mes (com o teste de autenticidade) e por hora do servidor.
+#  4. AUTENTICIDADE DO CAMINHO DO BID (v1.03) — mediana de |dbid| por tick e
+#     ticks por minuto, por mes. Este teste NAO toca no ask: pega tick
+#     RECONSTRUIDO a partir de barra M1, que preserva OHLC (e portanto
+#     MFE/MAE de barra) mas inventa o caminho intraminuto. Como 63% dos
+#     trades saem por breakeven intrabar, e' o unico canal que importa.
+#     Medido em 2026-08-19 nas janelas de 75 ticks do EA de medicao:
+#     XAUUSDm 2026-01 deu 43,1 pts/tick contra 97-108 nos outros meses,
+#     invariante a ATR e hora. Aqui a mesma medida sai da FONTE.
+#  5. Quebra por mes (com o teste de autenticidade) e por hora do servidor.
 #
 # NAO responde: custo total da conta. Raw/Zero cobra COMISSAO por lote, que
 # NAO aparece no export de ticks. Custo round-trip = spread + comissao.
 # Comparar contas so' pelo spread favorece a Raw artificialmente.
 #
 # CHANGELOG
+#   1.03  2026-08-19  CAMINHO DO BID: mediana de |dbid| por tick e ticks/min
+#                     por mes. O teste de spread (trocas/1M) so' enxerga o
+#                     canal do ASK; um feed reconstruido de barra M1 pode ter
+#                     spread plausivel e caminho de BID sintetico. Foi esse o
+#                     caso de 2026-01, e nenhum teste anterior o pegava.
 #   1.02  2026-08-18  Teste de TROCAS por mes. A contagem de valores distintos
 #                     sozinha acusava spread quantizado real como sintetico —
 #                     falso positivo. Trocas/1M separa os dois casos.
@@ -89,9 +102,12 @@ def main():
     hist_mes = {}    # 'YYYY.MM' -> histograma
     trocas_mes = {}  # 'YYYY.MM' -> quantas vezes o spread mudou de valor
     por_hora = {}    # 'HH' -> [soma, n]
+    passo_mes = {}   # 'YYYY.MM' -> histograma de |dbid| em pontos [v1.03]
+    minutos_mes = {} # 'YYYY.MM' -> set de 'DD HH:MM' com pelo menos 1 tick
     n_lidos = n_validos = n_sem_ask = n_negativo = n_fora = 0
     data_min = data_max = None
     sp_anterior = None   # ultimo spread do chunk anterior (continuidade)
+    bid_anterior = None  # ultimo bid do chunk anterior [v1.03]
 
     leitor = pd.read_csv(
         caminho, sep='\t', engine='c',
@@ -141,6 +157,30 @@ def main():
                 sel = sp[hora == hh]
                 a = por_hora.setdefault(hh, [0, 0])
                 a[0] += int(sel.sum()); a[1] += len(sel)
+
+            # [v1.03] CAMINHO DO BID. Passo absoluto entre ticks consecutivos
+            # VALIDOS, em pontos. O passo pertence ao mes do tick posterior.
+            # bid_anterior costura a fronteira entre chunks.
+            bidv = bid[ok][dentro]
+            if len(bidv):
+                if bid_anterior is not None:
+                    bidv = np.concatenate(([bid_anterior], bidv))
+                    mes_p = mes
+                else:
+                    mes_p = mes[1:]
+                passo = np.rint(np.abs(np.diff(bidv)) / PONTO).astype(np.int64)
+                passo = np.minimum(passo, MAX_PTS)
+                for m in np.unique(mes_p):
+                    h = passo_mes.setdefault(m, np.zeros(MAX_PTS + 1, dtype=np.int64))
+                    h += np.bincount(passo[mes_p == m], minlength=MAX_PTS + 1)
+                bid_anterior = float(bidv[-1])
+
+            # minutos distintos com tick, para ticks/min por mes
+            data_c = ch['<DATE>'].to_numpy()[ok][dentro]
+            hm = ch['<TIME>'].to_numpy()[ok][dentro].astype('U5')
+            chave = np.char.add(np.char.add(data_c.astype('U10'), ' '), hm)
+            for m in np.unique(mes):
+                minutos_mes.setdefault(m, set()).update(chave[mes == m].tolist())
 
         d = ch['<DATE>'].dropna()
         if len(d):
@@ -215,7 +255,43 @@ def main():
     linha('  (a corretora quota em degraus e alarga em evento). Isso e' + "'" + ' usavel,')
     linha('  mas como SENSOR de condicao de mercado tem resolucao baixa.')
 
-    bloco('4. FILTRO `spread <= %d` DA ESTRATEGIA TITULAR' % CORTE_FILTRO)
+    bloco('4. AUTENTICIDADE DO CAMINHO DO BID (nao toca no ask)')
+    linha('  %-9s %13s %11s %11s %11s %11s'
+          % ('mes', 'ticks', 'passo p50', 'passo p90', 'ticks/min', 'pts/min'))
+    linha('  ' + '-' * 72)
+    p50s = {}
+    for m in sorted(passo_mes):
+        h = passo_mes[m]
+        n = int(h.sum())
+        if n == 0:
+            continue
+        nmin = max(1, len(minutos_mes.get(m, ())))
+        tpm = n / nmin
+        p50 = pctl(h, 0.50)
+        p50s[m] = p50
+        linha('  %-9s %13s %11d %11d %11.1f %11.0f'
+              % (m, f'{n:,}', p50, pctl(h, 0.90), tpm, p50 * tpm))
+    if len(p50s) >= 3:
+        med = float(np.median(list(p50s.values())))
+        linha()
+        for m in sorted(p50s):
+            if med > 0 and p50s[m] < 0.6 * med:
+                linha('  >>> %s: passo %d pts = %.2fx a mediana dos meses (%.0f).'
+                      % (m, p50s[m], p50s[m] / med, med))
+                linha('      Assinatura de TICK RECONSTRUIDO de barra M1: o mesmo')
+                linha('      movimento partido em mais passos, menores. Preserva OHLC')
+                linha('      (MFE/MAE de barra ficam normais) e INVENTA o caminho')
+                linha('      intraminuto — que e' + "'" + ' onde o breakeven e o stop vivem.')
+                linha('      Mes INVALIDO para desenho path-dependent, e NAO recuperavel')
+                linha('      re-precificando: modelo de spread conserta o ask, nao o bid.')
+    linha()
+    linha('  LEITURA — este teste e' + "'" + ' independente do de spread e pega o que ele')
+    linha('  nao pega. Um feed reconstruido pode ter spread plausivel e caminho')
+    linha('  de bid sintetico. Confirmar sempre olhando a coluna pts/min: se ela')
+    linha('  bate com os outros meses mas o passo nao, e' + "'" + ' o caminho que foi')
+    linha('  fabricado, nao a volatilidade que mudou.')
+
+    bloco('5. FILTRO `spread <= %d` DA ESTRATEGIA TITULAR' % CORTE_FILTRO)
     passa = int(hist[:CORTE_FILTRO + 1].sum())
     pct = 100.0 * passa / total
     linha('  Aprovaria %s de %s ticks = %.2f%%' % (f'{passa:,}', f'{total:,}', pct))
@@ -226,7 +302,7 @@ def main():
         linha('      nao custo. Antes de comparar contas, re-expressar o corte em')
         linha('      termos RELATIVOS (percentil da propria conta, ou multiplo de ATR).')
 
-    bloco('5. POR HORA DO SERVIDOR (media de spread)')
+    bloco('6. POR HORA DO SERVIDOR (media de spread)')
     linha('  %-5s %13s %10s' % ('hora', 'ticks', 'media pts'))
     for h in sorted(por_hora):
         s, n = por_hora[h]

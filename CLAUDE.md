@@ -469,6 +469,52 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     acima de 100 pts em janeiro contra **9 de 20 (45%)** no resto; reescalando o
     limiar pela propria densidade, 8% contra 45%, Fisher p=0,0024.
 
+    **TROCAS/1M medido na FONTE em 2026-08-19** (export de ticks do MT5,
+    `S-Py-Perfil_Spread.py`), XAUUSDm @ Trial5:
+
+    | mes | ticks | p50 | dominante | **trocas/1M** | veredito |
+    |---|---|---|---|---|---|
+    | 2026.05 | 3,6M | 280 | 280 = 96,3% | 2.131 | ok |
+    | 2026.06 | 8,0M | 260 | 280 = 44,2% | 40.703 | ok |
+    | **2026.07** | 6,7M | 240 | 240 = 97,0% | **1.750** | **ok** |
+    | 2026.08 | 3,4M | 260 | 260 = 71,0% | 6.225 | ok |
+
+    **Julho esta' VALIDADO e isso importa** — ele e' 53% da referencia atual, e o
+    criterio de "valores distintos" (11 valores, 97% num so') o teria condenado.
+
+    E no MESMO dia mediu-se o XAUUSD @ Real3 na janela COMPLETA (13,4M ticks so'
+    em janeiro, contra a amostra de 2M/4 dias que gerou o numero antigo):
+
+    | mes | ticks | p50 | **distintos** | dominante | **trocas/1M** |
+    |---|---|---|---|---|---|
+    | **2026.01** | 13,4M | 37 | **343** | 37 = 99,7% | **178** <- suspeito |
+    | 2026.02 | 8,0M | 77 | 178 | 77 = 39,9% | 26.104 |
+    | 2026.03 | 12,3M | 137 | 25 | 97 = 42,2% | 9.443 |
+    | 2026.04 | 6,8M | 97 | 13 | 97 = 66,9% | 18.219 |
+    | 2026.05 | 6,0M | 100 | 9 | 100 = 87,4% | 6.437 |
+    | 2026.06 | 8,0M | 90 | 11 | 100 = 44,2% | 40.626 |
+    | 2026.07 | 6,7M | 80 | 11 | 80 = 96,9% | **1.745** |
+    | 2026.08 | 3,1M | 90 | 10 | 90 = 68,3% | 6.706 |
+
+    **>>> PROVA DEFINITIVA DE QUE A CONTAGEM DE DISTINTOS E' O TESTE ERRADO:**
+    2026.01 tem **343 valores distintos — o MAIOR de todos os oito meses** — e e'
+    o mes podre. Julho tem **11** e e' bom. O teste de distintos **absolveria
+    janeiro e condenaria julho, invertendo os dois vereditos.** Quem separa e'
+    trocas/1M: 178 contra mediana de 8.074 (45x abaixo) em janeiro; 1.745 em
+    julho. Nao usar contagem de distintos para decidir, nunca.
+
+    Correcao de numero: a armadilha citava "5 trocas em 2M ticks" (2,5/1M) para
+    janeiro. Aquilo era amostra de 4 dias; o mes inteiro da' **178/1M**. Continua
+    45x abaixo da mediana, continua reprovado — mas o numero certo e' 178.
+
+    **CAMINHO DO BID na fonte (v1.03 do script), XAUUSDm mai-ago:** passo p50 de
+    **61 a 65 pts/tick** nos quatro meses, ticks/min 197-265. Janela valida
+    **homogenea**, sem anomalia. (O export baixado comeca em 2026-05-14 e nao
+    alcanca janeiro no XAUUSDm.)
+    (O export baixado comeca em 2026-05-14, entao 2026.01 do XAUUSDm ainda nao
+    passou por este teste na fonte — segue apoiado no passo do BID e no proxy de
+    janelas de 75 ticks.)
+
     **Assinatura:** o mesmo movimento real partido em ~2x mais passos, ~2,4x
     menores. E' tick RECONSTRUIDO a partir de barra M1 — preserva OHLC (por isso
     MFE/MAE e ATR de barra ficam normais: `vol_eff` p=0,284) e **inventa o caminho
@@ -537,11 +583,10 @@ nao mais o proximo experimento interessante.
 3b. **Re-medir o valor do filtro de spread** (5.3). Na janela valida ele nao tem
    valor de selecao detectavel (p=0,431). E' o achado mais incomodo do dia e poe
    em duvida a config de referencia.
-3c. **`S-Py-Perfil_Spread.py` sobre os `.tkc` de XAUUSDm@Trial5** — os arquivos
-   existem (`bases\Exness-MT5Trial5	icks\XAUUSDm601.tkc`, 91 MB, ate'
-   `202608`). Acrescentar duas colunas: mediana de |dbid| por tick e ticks/minuto
-   por dia. As medicoes de hoje vem de janelas de 75 ticks — proxy solido, nao a
-   fonte. Fecha o item aberto desde 08-18.
+3c. ~~`S-Py-Perfil_Spread.py` sobre os ticks de XAUUSDm~~ — **FEITO em 2026-08-19**
+   (export em `C:\dev\Historico\`, fora do repo por tamanho). **Julho esta'
+   VALIDADO.** Ver a tabela na armadilha 13. Falta so' o mesmo teste em 2026.01
+   do XAUUSDm: o export baixado comeca em **2026-05-14** e nao alcanca janeiro.
 3d. **Consertar o gravador de CSV.** `S-EA-Pullback_Live.mq5` filtra por `InpMagic`
    e nao grava as pernas da piramide nem o fechamento forcado de fim de teste.
    Ou grava, ou os relatorios `.htm` passam a ser versionados.
