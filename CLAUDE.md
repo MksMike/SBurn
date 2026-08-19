@@ -603,6 +603,23 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     desaparece e o log nao diz nada. Medido na janela valida, o EA sem esse filtro
     cai de PF 7,41 para 1,80 e o drawdown de saldo vai de $23,37 para $196,06.
     Ver R8 e `docs\S-Doc-Portabilidade.md`.
+17. **`Report=` com caminho ABSOLUTO no `.ini` do tester e' descartado em silencio.**
+    O teste roda, termina com "successfully finished", e nenhum relatorio nasce —
+    nem erro, nem aviso. Com nome SIMPLES (`Report=rel_v205_trial5_ref`) o MT5
+    grava na **raiz da pasta de dados**, junto com 4 `.png`. Build 6090, medido
+    nas duas formas em 2026-08-19. **Foi isto que apagou o drawdown e o PF das
+    rodadas de 2026-08-18** — e sem DD nao ha' ret/DD, que e' o criterio de
+    avaliacao da piramide. Nunca concluir "o teste falhou" pela ausencia do
+    relatorio: conferir `Tester\logs\` antes.
+18. **Falha ao armar o breakeven nao entra em NENHUM contador.** A linha de resumo
+    reporta `sinal/contexto/abrir/fechar`; BE nao esta' la'. `g_tentBE` e' por
+    posicao e o `Print` so' sai na 1a tentativa. Pior: apos `InpMaxTentBE` falhas
+    o EA **desiste em definitivo** daquela posicao (linha 636), que segue viva sem
+    protecao ate' o stop ou o proximo sinal. Na rodada de referencia foram **2 de
+    76** posicoes (2026.02.11 21:19, `10018 market closed`, 10 modifies recusados).
+    2,6% e' pequeno, mas e' invisivel por construcao — ninguem sabe a taxa nas
+    outras rodadas. A lei 2 diz que o BE no zero e' o otimo global: posicao que
+    corre sem BE nao e' a estrategia medida.
 
 ---
 
