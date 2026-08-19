@@ -6,7 +6,7 @@
 //|             S-Ind-ScalpPullback.ex5  (sempre)                     |
 //|             S-Ind-TMO_Scalper.ex5    (se usar candidato B/C/D)    |
 //| ASSINATURA no log ao iniciar (prova de identidade):               |
-//|   "S-EA-Pullback_Live v2.05 | cand=... TF=... SPTF=..."           |
+//|   "S-EA-Pullback_Live v2.06 | cand=... TF=... SPTF=..."           |
 //+------------------------------------------------------------------+
 //| S-EA-Pullback_Live.mq5 — EA OPERACIONAL DO PROJETO SBURN          |
 //|                                                                    |
@@ -54,6 +54,30 @@
 //|    dispararia: recalibrar para a mediana daquela conta.            |
 //|                                                                    |
 //| CHANGELOG                                                          |
+//|  v2.06 - INSTRUMENTACAO. Tres buracos de GRAVACAO. Nenhuma linha   |
+//|   de logica de trading tocada: mesma entrada, mesma saida, mesmo   |
+//|   BE. Verificado reproduzindo a referencia (777.23 / 76 / DD 23.37)|
+//|   antes e depois.                                                  |
+//|   (a) O CSV filtrava por InpMagic e as adicoes usam InpPirMagic,   |
+//|       entao NENHUMA perna de piramide era gravada — era por isso   |
+//|       que ops_pirON.csv e ops_pirOFF.csv saiam byte-identicos e o  |
+//|       status da piramide era "indecidivel por falta de dado".      |
+//|       Agora OnDeinit varre o historico por InpPirMagic e grava uma |
+//|       linha por perna, com origem=PIR.                             |
+//|   (b) O fechamento forcado de fim de teste nao era gravado: era a  |
+//|       diferenca exata entre o CSV (75) e o relatorio (76).         |
+//|       Agora sai com motivo=FIMTESTE.                               |
+//|   (c) Falha ao armar o BE nao entrava em contador nenhum. Depois   |
+//|       de InpMaxTentBE recusas o EA desiste em definitivo daquela   |
+//|       posicao e ela corre sem protecao — invisivel no resumo.      |
+//|       Medido na rodada de referencia: 2 de 76 (2026.02.11 21:19,   |
+//|       10018 market closed). Agora ha' contador no resumo e as      |
+//|       colunas be_armado / be_falhas por trade.                     |
+//|   COLUNAS NOVAS, no FIM (os scripts leem por nome, nao por         |
+//|   posicao): origem;be_armado;be_falhas. Campo VAZIO significa      |
+//|   "nao medido", nunca zero — a perna de piramide reconstruida do   |
+//|   historico nao tem atr/spread/mfe/mae, e gravar 0 ali seria a     |
+//|   armadilha 13 de novo.                                            |
 //|  v2.05 - PIRAMIDE DE VOLTA A DESLIGADA POR PADRAO.                 |
 //|   InpPirEnabled: true -> false. Reverte o default da v2.04. Unico  |
 //|   default alterado; nenhuma linha de logica tocada.                |
@@ -252,7 +276,7 @@
 //|   Medir essa divergencia e' o proposito deste EA.                  |
 //+------------------------------------------------------------------+
 #property copyright "SBurn"
-#property version   "2.05"
+#property version   "2.06"
 #property strict
 
 #property tester_indicator "SBurn\\S-Ind-ScalpPullback.ex5"
@@ -383,6 +407,11 @@ long     g_blockSpread=0, g_vetoRegime=0, g_vetoConflu=0, g_vetoHist=0;
 long     g_r2Disparos=0, g_r2Expirados=0, g_pirAdicoes=0;
 long     g_pirRejeitadas=0, g_pirSemTicket=0;  // [B17] casos opostos, contados separados
 long     g_saidaBE=0, g_saidaStop=0, g_saidaSinal=0;
+//--- [v2.06] instrumentacao do breakeven e da gravacao
+long     g_beDesistiu=0;   // posicoes que esgotaram InpMaxTentBE e correram SEM BE
+long     g_beRecusas=0;    // total de PositionModify recusados (todas as posicoes)
+long     g_linhasPir=0;    // linhas de perna de piramide gravadas no CSV
+long     g_linhasFim=0;    // linhas gravadas por fechamento forcado de fim de teste
 
 //+------------------------------------------------------------------+
 double Bid() { MqlTick t; return SymbolInfoTick(_Symbol, t) ? t.bid : 0.0; }
@@ -490,6 +519,27 @@ bool DealDeSaida(const ulong posId, double &preco, double &lucro, datetime &quan
 }
 
 //+------------------------------------------------------------------+
+//| [v2.06] UNICO lugar que monta uma linha do CSV. Todos os campos    |
+//| sao string: campo VAZIO = "nao medido", nunca 0 (armadilha 13).    |
+//| A ordem aqui tem de casar com o cabecalho escrito no OnInit.       |
+//+------------------------------------------------------------------+
+void EscreveCSV(const string tEnt, const string dir, const string pEnt,
+                const string bidEnt, const string atrEnt, const string spreadEnt,
+                const string tSai, const string pSai, const string motivo,
+                const string pnlPts, const string lucro, const string mfe,
+                const string mae, const string barras, const string exato,
+                const string seq, const string origem, const string beArm,
+                const string beFalhas)
+{
+   if(g_csv == INVALID_HANDLE) return;
+   FileWriteString(g_csv,
+      tEnt + ";" + dir + ";" + pEnt + ";" + bidEnt + ";" + atrEnt + ";" +
+      spreadEnt + ";" + tSai + ";" + pSai + ";" + motivo + ";" + pnlPts + ";" +
+      lucro + ";" + mfe + ";" + mae + ";" + barras + ";" + exato + ";" + seq +
+      ";" + origem + ";" + beArm + ";" + beFalhas + "\n");
+}
+
+//+------------------------------------------------------------------+
 //| Grava a operacao encerrada no CSV                                 |
 //+------------------------------------------------------------------+
 void RegistraSaida(const string motivo)
@@ -528,19 +578,21 @@ void RegistraSaida(const string motivo)
 
    if(g_csv == INVALID_HANDLE) return;
    int barras = (int)((tSaida - g_tEntrada) / PeriodSeconds(PERIOD_CURRENT));
-   string l = TimeToString(g_tEntrada, TIME_DATE|TIME_MINUTES|TIME_SECONDS) + ";" +
-              IntegerToString(g_dir) + ";" +
-              DoubleToString(g_pEntrada, _Digits) + ";" +
-              DoubleToString(g_bidEnt, _Digits) + ";" +
-              DoubleToString(g_atrEnt, 1) + ";" +
-              DoubleToString(g_spreadEnt, 1) + ";" +
-              TimeToString(tSaida, TIME_DATE|TIME_MINUTES|TIME_SECONDS) + ";" +
-              DoubleToString(pSaida, _Digits) + ";" + motivo + ";" +
-              DoubleToString(pnlPts, 1) + ";" + DoubleToString(lucro, 2) + ";" +
-              DoubleToString(g_mfe, 1) + ";" + DoubleToString(g_mae, 1) + ";" +
-              IntegerToString(barras) + ";" + (exato ? "1" : "0") +
-              ";" + IntegerToString(g_seqAtual);
-   FileWriteString(g_csv, l + "\n");
+   EscreveCSV(TimeToString(g_tEntrada, TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+              IntegerToString(g_dir),
+              DoubleToString(g_pEntrada, _Digits),
+              DoubleToString(g_bidEnt, _Digits),
+              DoubleToString(g_atrEnt, 1),
+              DoubleToString(g_spreadEnt, 1),
+              TimeToString(tSaida, TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+              DoubleToString(pSaida, _Digits), motivo,
+              DoubleToString(pnlPts, 1), DoubleToString(lucro, 2),
+              DoubleToString(g_mfe, 1), DoubleToString(g_mae, 1),
+              IntegerToString(barras), (exato ? "1" : "0"),
+              IntegerToString(g_seqAtual),
+              "PRIN",                                   // [v2.06] origem
+              (g_beArmado ? "1" : "0"),                 // [v2.06] be_armado
+              IntegerToString(g_tentBE));               // [v2.06] be_falhas
 }
 
 //+------------------------------------------------------------------+
@@ -643,9 +695,18 @@ void AplicaBreakeven()
    else
    {
       g_tentBE++;
+      g_beRecusas++;                            // [v2.06] (c)
       if(g_tentBE == 1)
          PrintFormat("Falha ao mover BE: %d %s", g_trade.ResultRetcode(),
                      g_trade.ResultRetcodeDescription());
+      //--- [v2.06] (c) transicao para "desistiu", contada UMA vez. A partir daqui
+      //    o guard [B7] barra novas tentativas e a posicao segue SEM BE.
+      if(g_tentBE == InpMaxTentBE)
+      {
+         g_beDesistiu++;
+         PrintFormat("BE DESISTIU apos %d tentativas — posicao segue SEM protecao",
+                     InpMaxTentBE);
+      }
    }
 }
 
@@ -971,12 +1032,13 @@ int OnInit()
       { Print("Falha ao abrir CSV: ", g_csvPath); return INIT_FAILED; }
       FileWriteString(g_csv,
          "t_entrada;dir;p_entrada;bid_entrada;atr_ent;spread_ent;"
-         "t_saida;p_saida;motivo;pnl_pts;pnl_moeda;mfe_pts;mae_pts;barras;preco_exato;seq\n");
+         "t_saida;p_saida;motivo;pnl_pts;pnl_moeda;mfe_pts;mae_pts;barras;preco_exato;seq;"
+         "origem;be_armado;be_falhas\n");
    }
 
    AdotaPosicao();
 
-   PrintFormat("S-EA-Pullback_Live v2.05 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
+   PrintFormat("S-EA-Pullback_Live v2.06 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
                "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | R2=%s "
                "piramide=%s(inicio %.1f passo %.1f max %d)",
                EnumToString(InpCandidato), g_usaConflu?"ON":"off", g_usaHist?"ON":"off",
@@ -985,6 +1047,102 @@ int OnInit()
                InpR2Enabled?"ON":"off", InpPirEnabled?"ON":"off",
                InpPirInicioATR, InpPirPassoATR, InpPirMaxPos);
    return INIT_SUCCEEDED;
+}
+
+//+------------------------------------------------------------------+
+//| [v2.06] (b) A posicao que o TESTER fecha no fim do periodo nunca   |
+//| passa por RegistraSaida — era a diferenca exata entre o CSV (75) e |
+//| o relatorio (76) na rodada de referencia.                          |
+//+------------------------------------------------------------------+
+void RegistraFimDeTeste()
+{
+   if(g_csv == INVALID_HANDLE || !g_temPos) return;
+   double pSaida = 0.0, lucro = 0.0; datetime tSaida = TimeCurrent();
+   bool exato = DealDeSaida(g_posId, pSaida, lucro, tSaida);
+   if(!exato) { pSaida = (g_dir > 0) ? Bid() : Ask(); tSaida = TimeCurrent(); }
+
+   double bidSaida = (g_dir > 0) ? pSaida : pSaida - g_spreadEnt * g_point;
+   double pnlPts   = (bidSaida - g_bidEnt) / g_point * g_dir;
+   int    barras   = (int)((tSaida - g_tEntrada) / PeriodSeconds(PERIOD_CURRENT));
+
+   EscreveCSV(TimeToString(g_tEntrada, TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+              IntegerToString(g_dir),
+              DoubleToString(g_pEntrada, _Digits),
+              DoubleToString(g_bidEnt, _Digits),
+              DoubleToString(g_atrEnt, 1),
+              DoubleToString(g_spreadEnt, 1),
+              TimeToString(tSaida, TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+              DoubleToString(pSaida, _Digits), "FIMTESTE",
+              DoubleToString(pnlPts, 1), DoubleToString(lucro, 2),
+              DoubleToString(g_mfe, 1), DoubleToString(g_mae, 1),
+              IntegerToString(barras), (exato ? "1" : "0"),
+              IntegerToString(g_seqAtual),
+              "PRIN", (g_beArmado ? "1" : "0"), IntegerToString(g_tentBE));
+   g_linhasFim++;
+}
+
+//+------------------------------------------------------------------+
+//| [v2.06] (a) As pernas da piramide usam InpPirMagic e por isso      |
+//| NUNCA entraram no CSV. Reconstroi cada perna do historico de deals |
+//| e grava uma linha por perna encerrada.                             |
+//|                                                                    |
+//| LIMITE, declarado (R3): daqui saem tempo, preco, direcao e P&L     |
+//| REAIS. NAO saem atr/spread da entrada nem MFE/MAE — isso exigiria  |
+//| acompanhar cada perna tick a tick. Esses campos vao VAZIOS. Vazio  |
+//| e' "nao medido"; gravar 0 seria inventar dado (armadilha 13).      |
+//+------------------------------------------------------------------+
+void RegistraPiramideCSV()
+{
+   if(g_csv == INVALID_HANDLE) return;
+   if(!HistorySelect(0, TimeCurrent() + 86400)) return;
+
+   int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      ulong dOut = HistoryDealGetTicket(i);
+      if(dOut == 0) continue;
+      if((ulong)HistoryDealGetInteger(dOut, DEAL_MAGIC) != InpPirMagic) continue;
+      if(HistoryDealGetInteger(dOut, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
+      if(HistoryDealGetString(dOut, DEAL_SYMBOL) != _Symbol) continue;
+
+      ulong pid = (ulong)HistoryDealGetInteger(dOut, DEAL_POSITION_ID);
+
+      //--- deal de ABERTURA da mesma posicao
+      datetime tEnt = 0; double pEnt = 0.0; int dir = 0; bool achou = false;
+      for(int j = 0; j < total; j++)
+      {
+         ulong dIn = HistoryDealGetTicket(j);
+         if(dIn == 0) continue;
+         if((ulong)HistoryDealGetInteger(dIn, DEAL_POSITION_ID) != pid) continue;
+         if(HistoryDealGetInteger(dIn, DEAL_ENTRY) != DEAL_ENTRY_IN) continue;
+         tEnt  = (datetime)HistoryDealGetInteger(dIn, DEAL_TIME);
+         pEnt  = HistoryDealGetDouble(dIn, DEAL_PRICE);
+         dir   = (HistoryDealGetInteger(dIn, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
+         achou = true;
+         break;
+      }
+      if(!achou) continue;
+
+      datetime tSai  = (datetime)HistoryDealGetInteger(dOut, DEAL_TIME);
+      double   pSai  = HistoryDealGetDouble(dOut, DEAL_PRICE);
+      double   lucro = HistoryDealGetDouble(dOut, DEAL_PROFIT) +
+                       HistoryDealGetDouble(dOut, DEAL_SWAP) +
+                       HistoryDealGetDouble(dOut, DEAL_COMMISSION);
+      int barras = (int)((tSai - tEnt) / PeriodSeconds(PERIOD_CURRENT));
+
+      EscreveCSV(TimeToString(tEnt, TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+                 IntegerToString(dir),
+                 DoubleToString(pEnt, _Digits),
+                 "", "", "",                    // bid_ent / atr / spread: nao medidos
+                 TimeToString(tSai, TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+                 DoubleToString(pSai, _Digits), "PIR",
+                 "",                            // pnl_pts: sem bid de entrada da perna
+                 DoubleToString(lucro, 2),
+                 "", "",                        // mfe / mae: nao medidos
+                 IntegerToString(barras), "1", "",
+                 "PIR", "", "");
+      g_linhasPir++;
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -1000,8 +1158,19 @@ void OnDeinit(const int reason)
                "falhas: sinal=%d contexto=%d abrir=%d fechar=%d",
                (int)g_vetoRegime, (int)g_vetoConflu, (int)g_vetoHist, (int)g_blockSpread,
                (int)g_falhaSig, (int)g_falhaCtx, (int)g_falhaAbrir, (int)g_falhaFechar);
-   if(g_falhaSig > 0 || g_falhaCtx > 0 || g_falhaAbrir > 0 || g_falhaFechar > 0)
+   //--- [v2.06] (c) o BE nao entrava em contador nenhum
+   PrintFormat("breakeven: recusas=%d | posicoes que DESISTIRAM e correram sem BE=%d",
+               (int)g_beRecusas, (int)g_beDesistiu);
+   if(g_falhaSig > 0 || g_falhaCtx > 0 || g_falhaAbrir > 0 || g_falhaFechar > 0 ||
+      g_beDesistiu > 0)
       Print("ATENCAO: houve falhas — conferir antes de usar o resultado.");
+
+   //--- [v2.06] (a)(b) as duas gravacoes que faltavam, ANTES de fechar o arquivo
+   RegistraFimDeTeste();
+   RegistraPiramideCSV();
+   PrintFormat("CSV: linhas extras — fim de teste=%d pernas de piramide=%d",
+               (int)g_linhasFim, (int)g_linhasPir);
+
    if(g_csv != INVALID_HANDLE) { FileClose(g_csv); g_csv = INVALID_HANDLE; Print("CSV: ", g_csvPath); }
    if(g_hSPsig != INVALID_HANDLE) IndicatorRelease(g_hSPsig);
    if(g_hSPreg != INVALID_HANDLE) IndicatorRelease(g_hSPreg);

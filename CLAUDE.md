@@ -615,11 +615,17 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     reporta `sinal/contexto/abrir/fechar`; BE nao esta' la'. `g_tentBE` e' por
     posicao e o `Print` so' sai na 1a tentativa. Pior: apos `InpMaxTentBE` falhas
     o EA **desiste em definitivo** daquela posicao (linha 636), que segue viva sem
-    protecao ate' o stop ou o proximo sinal. Na rodada de referencia foram **2 de
-    76** posicoes (2026.02.11 21:19, `10018 market closed`, 10 modifies recusados).
-    2,6% e' pequeno, mas e' invisivel por construcao — ninguem sabe a taxa nas
-    outras rodadas. A lei 2 diz que o BE no zero e' o otimo global: posicao que
-    corre sem BE nao e' a estrategia medida.
+    protecao ate' o stop ou o proximo sinal. Na rodada de referencia foi **1 de
+    76** (entrada 2026.02.11 20:50, `10018 market closed` as 21:19, 5 modifies
+    recusados; saiu por SINAL em +$7,12 — nao foi punida, mas correu exposta).
+    Instrumentado na v2.06: contador no resumo e colunas `be_armado`/`be_falhas`.
+    A lei 2 diz que o BE no zero e' o otimo global: posicao que corre sem BE nao
+    e' a estrategia medida.
+    **Como eu errei este numero, para nao repetir:** contei `grep -c` no log do
+    agente, que **acumula todas as rodadas do dia** — tres rodadas de 1 posicao
+    viraram "2 posicoes" numa leitura e 15 modifies noutra. Log de tester nao e'
+    unidade de medida: contar sempre pelo contador do proprio EA, que zera a cada
+    rodada, ou delimitar o trecho da rodada antes de contar.
 
 ---
 

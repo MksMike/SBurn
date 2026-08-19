@@ -128,8 +128,9 @@ desenho (secao 3 da `CLAUDE.md`). `Report=` sem caminho e sem extensao.
 2. **Servidor de DEMO.** `Exness-MT5Trial5`. A doc do projeto ja' afirmou conta
    real quando era demo (armadilha 14) — nao repetir.
 3. **A rodada emite `ATENCAO: houve falhas`.** Uma entrada perdida por
-   `10018 market closed` (2026.02.02 21:05) e duas posicoes que nunca armaram o
-   breakeven (2026.02.11 21:19). As de BE **nao aparecem em contador nenhum** —
-   ver armadilha 18.
-4. **O CSV de operacoes nao reconcilia com o relatorio**: nao grava o fechamento
-   forcado de fim de teste. Item aberto da fila.
+   `10018 market closed` (2026.02.02 21:05) e **uma** posicao que nunca armou o
+   breakeven (entrada 2026.02.11 20:50). A partir da v2.06 as duas coisas tem
+   contador proprio no resumo — ver armadilha 18.
+4. ~~O CSV nao reconcilia com o relatorio~~ — **resolvido na v2.06**: 76 linhas
+   contra 76 negociacoes. O que faltava era o fechamento forcado de fim de teste,
+   agora gravado com `motivo=FIMTESTE`.
