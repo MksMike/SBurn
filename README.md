@@ -25,6 +25,27 @@ primeiro, EAs por ultimo.
 Cada PC do projeto esta' descrito em `docs/S-Doc-Maquinas.md`, inclusive o que
 falta nele para reproduzir o resultado de referencia.
 
+## Principio de desenho: PORTABILIDADE (R8)
+
+**O sistema tem de operar em qualquer corretora e em qualquer tipo de conta**
+(Standard, Raw, Zero, Pro). Nenhum default pode ser um valor absoluto valido so'
+numa conta: todo parametro e' adimensional (multiplo de ATR, barras, percentil) ou
+**derivado por medicao do historico da conta em uso**.
+
+Hoje o EA **nao** cumpre isso em dois pontos medidos:
+
+- `InpMaxSpread = 260` e' absoluto. Numa conta Raw (spread mediano 90) ele deixa
+  passar 100% dos sinais e o filtro desaparece **em silencio** — PF cai de 7,41
+  para 1,80 e o drawdown de saldo vai de $23,37 para $196,06.
+- O **degrau ZERO do breakeven** ignora o custo: sair no BE perde um spread mais
+  comissao, e ~63% dos trades saem pelo BE.
+
+A resposta e' **auto-configuracao por conta** — um script que identifica corretora,
+servidor, conta e tipo, varre o historico daquela conta, mede **spread e comissao**
+e calibra o que depende de conta, inclusive o degrau do BE para que sair no
+breakeven nao seja prejuizo. Especificacao completa, com o conflito medido que ela
+precisa resolver: **`docs/S-Doc-Portabilidade.md`**. **Nada disso esta implementado.**
+
 ## Arquivos
 
 | Arquivo | v | Papel |
@@ -43,23 +64,36 @@ falta nele para reproduzir o resultado de referencia.
 | `docs/S-Doc-Spread_Contas.md` | 1.1 | Standard x Raw: medicao, decisao e a armadilha do spread carimbado. |
 | `docs/S-Doc-Checkpoint_2026-08-18.md` | 1.0 | Checkpoint do dia: o que foi feito, o que ficou invalido e a fila. |
 | `docs/AUDITORIA_SINCRONIA.md` | — | Auditoria repo x PC x GitHub de 2026-08-18 (secoes 4.2 e 4.3 ja resolvidas). |
+| `docs/S-Doc-Portabilidade.md` | 1.0 | **R8**: rodar em qualquer corretora/conta + spec da auto-configuracao (spread, comissao, degrau do BE). |
+| `docs/S-Doc-PreReg_PBSHALLOW.md` | — | Pre-registro do gatilho de pullback raso. Rodado e **reprovado**. |
+| `docs/S-Doc-PreReg_Spread.md` | — | Pre-registro da grade de `InpMaxSpread` na janela valida. |
+| `docs/CHECKPOINT.md` | — | Checkpoint corrente. |
+| `analise/S-Py-Compara_PBShallow.py` | — | Compara rodadas do EA de medicao lado a lado. |
+| `setup/S-Ps-Perfil_Conta.ps1` | — | **NAO EXISTE** — auto-configuracao por conta (ver S-Doc-Portabilidade). |
+| `analise/S-Py-Perfil_Conta.py` | — | **NAO EXISTE** — consolida spread + comissao em custo, calibra o BE. |
+| `MQL5/Include/SBurn/S-Include-ContaConfig.mqh` | — | **NAO EXISTE** — o EA le a config da conta; sem ela, recusa operar. |
 
 ## Reproduzir o resultado de referencia
 
-`S-EA-Pullback_Live` com os defaults, XAUUSDm M5, **2026.01.01-08.18**, "Every tick
-based on real ticks", 0.01 lote. Como a v2.04 liga a piramide por padrao, sao dois
-numeros, medidos na mesma janela:
+`S-EA-Pullback_Live`, XAUUSDm M5 @ `Exness-MT5Trial5`, **2026.02.01-08.18**, "Every
+tick based on real ticks", 0.01 lote, candidato `C_HIST`.
 
-| Configuracao | Lucro | DD capital | PF | Negociacoes |
-|---|---|---|---|---|
-| defaults (piramide ON) | +$2.617,25 | $426,52 | 4,63 | 254 |
-| `InpPirEnabled=false` (so' a principal) | +$1.387,20 | $187,34 | 4,64 | 148 |
+> **A janela comeca em fevereiro de proposito.** 2026-01 esta reprovado: o spread do
+> tick e' constante em 160,0 pts nos 25 dias do mes (armadilha 13). Como 63% dos
+> trades saem pelo breakeven e o BE nao derrapa com spread constante, janeiro nao e'
+> impreciso — e' invalido para este desenho.
 
-A piramide troca eficiencia por participacao: o fator de recuperacao do conjunto cai
-de 7,40 para 6,14. Decisao consciente, registrada em `docs/CHECKPOINT.md`.
+| Configuracao | Lucro | DD saldo | PF | Negociacoes | Recuperacao |
+|---|---|---|---|---|---|
+| **`InpPirEnabled=false` (so' a principal)** | **+$777,23** | **$23,37** | **7,41** | 76 | **4,15** |
+| defaults da v2.04 (piramide ON) | +$962,49 | $53,17 | 4,25 | 141 | 2,26 |
 
-O numero antigo de referencia (**137 trades, +$1.308,59, DD $49,25, PF 5,83**) e' da
-janela 2026.01.01-**08.12**, mais curta, e continua valido para ela.
+Na janela valida a piramide rende **0,77x** sobre o drawdown que adiciona — ela
+adiciona mais risco do que lucro. O default `InpPirEnabled=true` da v2.04 foi
+decidido sobre a janela contaminada; **a recomendacao e' reverter para `false`**.
+
+Numeros anteriores (137 trades / +$1.308,59 / 26,6x, e o par 2.617,25 / 1.387,20)
+sao da janela que inclui 2026-01 e estao **aposentados**. Ver `docs/CHECKPOINT.md`.
 
 Trocar `InpCandidato` (A_TITULAR / B_CONFLU / C_HIST / D_COMBO) para comparar
 variantes. E' o unico input a mudar entre rodadas.

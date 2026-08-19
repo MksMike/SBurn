@@ -1,21 +1,41 @@
 # CLAUDE.md — Projeto SBurn
-**Versao:** 4.0 | **Atualizado:** 2026-08-18
+**Versao:** 5.0 | **Atualizado:** 2026-08-19
 Leia por completo antes da primeira acao. Em conflito, este arquivo vence.
 
 ---
 
 ## 0. O que e' o projeto
 
-Pesquisa empirica de sistemas de trading para **XAUUSDm** (ouro) no MetaTrader 5.
-O objetivo NAO e' "fazer um EA que lucre no backtest". E' **descobrir, com medicao
-honesta, onde existe e onde nao existe vantagem estatistica** — e so' entao construir.
+Pesquisa empirica de sistemas de trading para **ouro** (XAUUSD e variantes) no
+MetaTrader 5. O objetivo NAO e' "fazer um EA que lucre no backtest". E' **descobrir,
+com medicao honesta, onde existe e onde nao existe vantagem estatistica** — e so'
+entao construir.
+
+### O projeto e' PORTAVEL por desenho (decisao do Mike, 2026-08-19)
+
+**O sistema tem de operar em qualquer corretora e em qualquer tipo de conta**
+(Standard, Raw, Zero, Pro). Isso nao e' um objetivo futuro: e' criterio de aceite
+de tudo que se escreve aqui, e vira a regra **R8**.
+
+Consequencia imediata: **nenhum parametro absoluto amarrado a uma conta pode ser
+default.** Hoje o EA falha nisso em dois pontos medidos — `InpMaxSpread=260`
+(numa conta Raw, cujo spread mediano e' 90, ele nunca morde: PF cai de 7,41 para
+1,80 e o drawdown multiplica por 8) e o **degrau ZERO do breakeven**, que ignora o
+custo e por isso e' estruturalmente um prejuizo de um spread por scratch.
+
+A resposta e' **auto-configuracao por conta**: um script identifica corretora,
+servidor, conta e tipo, varre o historico DAQUELA conta, mede spread e comissao,
+e calibra o que depende de conta — inclusive o degrau do breakeven, para que sair
+no BE nao seja prejuizo. Especificacao completa, com o conflito medido que ela
+precisa resolver, em **`docs\S-Doc-Portabilidade.md`**. Nada disso esta
+implementado.
 
 Interlocutor: Mike, dev MQL5, PT-BR, no Japao.
 **Responder em portugues do Brasil. Comentarios de codigo em portugues SEM acentos.**
 
 ---
 
-## 1. Regras de conduta (R1-R7)
+## 1. Regras de conduta (R1-R8)
 
 **R1 — Nenhum parametro sem medicao.** Todo valor ou vem de medicao documentada, ou
 e' input marcado `NAO CALIBRADO`. Chutar parametro e' a falha mais grave aqui.
@@ -38,6 +58,14 @@ atuais NAO medem? Ferramenta nova so' entra depois que o existente foi medido.
 **R7 — Medir antes de construir.** Toda ideia vira primeiro coluna no EA de medicao
 e passa pelo tribunal. So' o que passa vira codigo operacional. Ja' evitou dois EAs
 perdedores (contra-trade pos-BE e cruzamento de medias).
+
+**R8 — Portabilidade por desenho.** O sistema tem de rodar em qualquer corretora e
+qualquer tipo de conta. Nenhum default pode ser um valor absoluto valido so' numa
+conta. Todo parametro e' (a) adimensional — multiplo de ATR, barras, percentil —,
+ou (b) **derivado por medicao do historico da conta em uso**, nunca fixado no
+codigo. Custo (spread + comissao) e' variavel de conta, jamais constante do
+projeto. Um parametro absoluto nao falha com erro: falha em silencio, e o filtro
+de spread ja' mostrou como. Ver `docs\S-Doc-Portabilidade.md`.
 
 ---
 
@@ -108,16 +136,34 @@ imprime no log.
 
 ## 3. Contexto operacional (nao re-descobrir)
 
+> **Sob a R8, esta secao mudou de natureza.** Ela NAO lista constantes do projeto:
+> lista **a conta em que se mediu ate' aqui**. Todo valor marcado *(de conta)* e'
+> uma medicao daquela conta e tem de ser re-medido em qualquer outra. Quem faz
+> isso e' a auto-configuracao (`docs\S-Doc-Portabilidade.md`), ainda nao escrita.
+
 | Item | Valor |
 |---|---|
-| Simbolo | XAUUSDm, Exness Standard, servidor Exness-MT5Real41 |
-| Digitos | **3** (point = 0.001); 1 ponto com 0.01 lote = **$0.001** |
-| Spread real | mediana **260 pts**, p25 240, p75 280, p90 360 |
-| Conta | JPY, hedging |
+| Simbolo medido | XAUUSDm (ouro; o desenho nao e' especifico deste sufixo) |
+| **Servidor que produziu as medicoes** | **`Exness-MT5Trial5` — servidor de DEMO** |
+| Servidor que a doc declarava | `Exness-MT5Real41` (Standard real) — **so' tem 202608 baixado** |
+| Digitos | **3** (point = 0.001); 1 ponto com 0.01 lote = **$0.001** *(de conta)* |
+| Spread | mediana **260 pts**, p25 240, p75 280, p90 360 *(de conta — Trial5)* |
+| Comissao | **NAO medida.** Zero e' suposicao, nao dado *(de conta)* |
+| Conta | JPY, hedging *(de conta)* |
 | Pasta de dados MT5 | alias `C:\MT5\Exness\MQL5` (junction por maquina) |
 | CSV de saida | `...\MetaQuotes\Terminal\`**`Common`**`\Files\SBurn\` (pasta IRMA) |
 | Maquinas | ver `docs\S-Doc-Maquinas.md` (PC-Escritorio = `MIKE-PC`) |
-| **Tick real Exness** | **so' a partir de 2026.01** |
+| **Tick real Exness** | **so' a partir de 2026.02** (2026.01 reprovado — ver armadilha 13) |
+
+> **DESCOBERTO em 2026-08-19:** todas as medicoes do projeto rodaram contra
+> `Exness-MT5Trial5`, um servidor de **demo**, e nao contra o `Exness-MT5Real41`
+> que esta secao declarava. Prova: o cabecalho de todo relatorio do tester diz
+> `Exness-MT5Trial5 (Build 6090)`, o log do terminal diz `demo account`, e
+> `bases\Exness-MT5Trial5	icks\XAUUSDm\` tem 202601..202608 (87 a 31 MB)
+> enquanto `bases\Exness-MT5Real41	icks\XAUUSDm\` tem **so' 202608, 0,6 MB**.
+> Consequencia: a mediana de spread de 260 e' a do Trial5. Sob a R8 isso deixa de
+> ser um problema a corrigir e passa a ser o caso de uso normal — mas **tem de
+> estar declarado**, e estava errado.
 
 **Backtest so' com "Every tick based on real ticks".** O desenho e' path-dependent
 (63% dos trades saem pelo breakeven, que depende do caminho intrabar): qualquer teste
@@ -154,17 +200,35 @@ do SP no M30 (buffer 27) concordando.
 da entrada** (degrau ZERO); qualquer sinal novo do SP fecha.
 **Filtros:** histograma do TMO |main-signal| < 2,20 e spread <= 260.
 
-Backtest real, ticks reais, 2026.01.01-08.12, 0.01 lote:
+> **A tabela abaixo foi APOSENTADA em 2026-08-19**: a janela dela comeca em
+> 2026.01.01, e 2026-01 esta reprovado (armadilha 13). Janeiro respondia por 49%
+> dos trades e 44% do lucro — nao por render mais (rende MENOS: $8,47/trade contra
+> $10,26), mas porque o spread carimbado em 160 fazia **100%** dos sinais dele
+> passarem o filtro `<=260`. Fica registrada como historico.
 
-| Config | n | media$ | total$ | DD$ | ret/DD | PF |
-|---|---|---|---|---|---|---|
-| sem filtros | 370 | +3.15 | +1163.82 | 206.33 | 5.6x | 2.06 |
-| + histograma | 247 | +4.75 | +1173.88 | 157.57 | 7.5x | 2.69 |
-| **+ histograma + spread** | **137** | **+9.55** | **+1308.59** | **49.25** | **26.6x** | **5.83** |
+| Config (janela INVALIDA 2026.01.01-08.12) | n | total$ | DD$ | ret/DD | PF |
+|---|---|---|---|---|---|
+| sem filtros | 370 | +1163.82 | 206.33 | 5.6x | 2.06 |
+| + histograma | 247 | +1173.88 | 157.57 | 7.5x | 2.69 |
+| + histograma + spread | 137 | +1308.59 | 49.25 | 26.6x | 5.83 |
 
-Perfil: ~63% scratch (-$0.50), ~25% ganho (+$32), ~12% stop (-$20). Duracao mediana
-35 min. Stop mediano 20.077 pts ($20); BE arma em 3.993 pts ($4).
-**Status: promissor, NAO validado.** 137 trades em 8 meses.
+**REFERENCIA CORRENTE — janela valida 2026.02.01-08.18**, XAUUSDm M5 @ Trial5,
+100% ticks reais, 0.01 lote, piramide off:
+
+| Config | n | total$ | DD saldo$ | PF | Fator de recuperacao |
+|---|---|---|---|---|---|
+| sem filtros | 477 | +853.32 | 284.71 | 1.54 | 2.08 |
+| + histograma (sem filtro de spread) | 301 | +719.23 | 196.06 | 1.80 | 1.75 |
+| **+ histograma + spread <= 260** | **76** | **+777.23** | **23.37** | **7.41** | **4.15** |
+
+O desenho sobrevive — os dois filtros levam o PF de 1,54 a 7,41 — mas **a magnitude
+era metade janeiro**. Repare tambem na **lei 3 em acao**: sem o filtro de spread o
+histograma PIORA o lucro ($853 -> $719); com ele, melhora ($738 -> $777).
+
+**Status: promissor, NAO validado, e agora com base menor do que se pensava.**
+**76 trades em 6,5 meses, e dois meses (abril e maio) com ZERO trades** — o filtro
+absoluto de spread desliga o EA quando a mediana da conta sobe para 308. A
+estabilidade mensal que a secao 4 exige para promocao **nao existe**.
 
 ### 5.2 O problema aberto: participacao
 
@@ -226,12 +290,26 @@ com queda dos dois lados (assinatura de estrutura, nao de pico de sobreajuste).
 > | so' a principal | $1.387,20 | $187,34 | 4,64 | 148 | 7,40 |
 >
 > +$1.230,05 de lucro por +$239,18 de DD: ~5,1x na margem, contra 7,4x da
-> principal. **Decisao do Mike em 2026-08-19: ligar por padrao** (v2.04), com o
-> trade-off na mesa. Segue **hipotese medida, nao validada** — 8 meses, e a janela
-> inclui 2026.01, que ainda carrega a ressalva da armadilha 13.
+> principal. **Decisao do Mike em 2026-08-19: ligar por padrao** (v2.04).
+>
+> **RE-MEDIDO no mesmo dia, na janela VALIDA (2026.02.01-08.18):**
+>
+> | Config | Lucro | DD capital | PF | Negoc. | Recuperacao |
+> |---|---|---|---|---|---|
+> | so' a principal | $777,23 | $187,34 | 7,41 | 76 | **4,15** |
+> | + piramide | $962,49 | $426,52 | 4,25 | 141 | **2,26** |
+>
+> Na margem: **+$185,26 de lucro por +$239,18 de DD = 0,77x.** A piramide
+> **adiciona mais drawdown do que lucro** e quase corta o fator de recuperacao pela
+> metade. **Todo o argumento de +89% era 2026-01.** A recomendacao passa a ser
+> reverter o default para `false`; a decisao e' do Mike e esta pendente.
 
-**Em aberto:** `SIG_PBSHALLOW` (pullback raso dentro do regime, sem exigir retorno ao
-canal PAC) — implementado no EA de medicao v1.20, **ainda nao rodado**.
+**`SIG_PBSHALLOW`: RODADO E REPROVADO em 2026-08-19** — 4 configuracoes + controle,
+pre-registro em `docs\S-Doc-PreReg_PBSHALLOW.md`. A frequencia sobe de verdade
+(3,3x a 5,1x sinais/dia), mas a assimetria desaba: P2/P3/P4 nao pagam o spread, e
+P1 (o unico que passava) cai junto ao remover 2026-01. **A H0 do pre-registro — "o
+canal PAC nao e' burocracia, e' o que separa recuo de reversao" — sai confirmada.**
+Detalhes e as correcoes de metodo que o tribunal encontrou: 5.4.
 
 ### 5.3 Filtros — o que agrega
 
@@ -300,40 +378,82 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     poucos valores. O teste e' **trocas por milhao de ticks**, e ele roda em
     `analise\S-Py-Perfil_Spread.py`. **Verificar todo periodo novo antes de usar**,
     inclusive os que ja' passaram por rodada anterior.
+    **CONFIRMADO no XAUUSDm em 2026-08-19, e agora ha' um teste MAIS BARATO:**
+    contar **valores distintos de spread por mes** no CSV do EA de medicao.
+    2026-01 @ Trial5 tem **UM unico valor — exatamente 160,0 pts — em 100% dos
+    sinais**, nos 25 dias de pregao, em 5 arquivos independentes; os outros 7
+    meses tem de 3 a 20. **Um valor unico num mes inteiro e' veredito, nao
+    suspeita** — nenhum feed real produz isso. Nao substitui trocas/1M (spread que
+    varia pouco escapa), mas dispensa export de ticks. Efeito medido no desenho:
+    `pnl_pts` mediano das saidas por BE = **-20 em janeiro contra -47 no resto**;
+    e o filtro `<=260` passa **100%** de janeiro (contra 0% de abril e maio),
+    inflando janeiro para **49% da amostra**. O mesmo mes ja' vinha carimbado a 37
+    pts no Real3: **e' defeito do historico de janeiro da Exness, nao da conta.**
+14. **O tester pode estar rodando contra um servidor que a doc nao declara.**
+    Oito meses de medicao sairam do `Exness-MT5Trial5` (DEMO) enquanto a secao 3
+    afirmava `Exness-MT5Real41`. Onde conferir, em ordem de custo: cabecalho do
+    relatorio do tester (`Exness-MT5Trial5 (Build 6090)`), `logs\<data>.log`
+    (`demo account`), e `bases\<servidor>	icks\<simbolo>\*.tkc` — o servidor
+    que tem os arquivos e' o que alimentou o backtest. **Conferir antes de citar
+    qualquer numero como sendo "da conta X".**
+15. **Parametro absoluto nao falha com erro; falha em silencio.** `InpMaxSpread=260`
+    numa conta Raw (spread mediano 90) deixa passar 100% dos sinais: o filtro
+    desaparece e o log nao diz nada. Medido na janela valida, o EA sem esse filtro
+    cai de PF 7,41 para 1,80 e o drawdown de saldo vai de $23,37 para $196,06.
+    Ver R8 e `docs\S-Doc-Portabilidade.md`.
 
 ---
 
 ## 7. Fila
 
-**ABERTO, ADIADO por decisao do Mike em 2026-08-18** — nao e' bloqueio, e' ressalva
-que anda junto do numero: rodar o teste de trocas/1M (`S-Py-Perfil_Spread.py`)
-sobre os ticks de **XAUUSDm** em 2026.01. A armadilha 13 foi medida no XAUUSD da
-Real3, onde janeiro entregou 47% do lucro com 17% dos trades. Se o mesmo defeito
-estiver no XAUUSDm, o resultado de referencia (137 trades, +$1.308,59, janela
-2026.01.01-08.12) inclui um mes invalido e precisa ser re-medido em 2026.02-08.
+**Reordenada em 2026-08-19 pela R8.** O que decide a ordem agora e' portabilidade,
+nao mais o proximo experimento interessante.
 
-**Enquanto nao for respondido:** o desenvolvimento segue normalmente sobre a
-referencia atual, mas **todo numero cuja janela inclua 2026.01 carrega essa
-ressalva** — inclusive comparacoes entre candidatos, que herdam o mesmo mes.
-Comparacao entre configuracoes na MESMA janela continua valida (o vies e' comum
-as duas); o que nao vale e' tratar o nivel absoluto como medido.
-Ver `docs\S-Doc-Spread_Contas.md`.
+### Resolvido nesta data (nao re-abrir)
 
-1. **Rodar `SIG_PBSHALLOW`** (EA de medicao v1.20) — 4 configuracoes + 1 controle.
-   Objetivo: mais trades/dia sem perder qualidade.
-2. **Estrutura de mercado** (`est_micro`/`est_macro`/`est_acordo`, ja' gravadas pelo
-   v1.20) — medir cada componente ISOLADO. Voto ponderado so' depois: peso e'
-   parametro, e parametro sem medicao viola a R1.
-3. **Modulo de dados historicos (Dukascopy)** — 4 anos, base universal reutilizavel,
-   custom symbol no MT5, coluna de **proveniencia** por periodo e modelo de spread da
-   Exness por cima. Unica forma de validar em anos.
-4. **StressLab** — slippage, spread elevado e latencia sobre a base historica.
-5. **Antes de conta real:** trava de simbolo/TF, limite de perda diaria, CSV em modo
-   append (`FILE_WRITE` trunca e perde historico se o terminal reiniciar), sizing em
-   JPY (o stop escala com ATR: p90 = 2x a mediana).
-6. **Conta Raw/Zero:** ganho direto ~5%; recalibrar o filtro de spread para termos
-   RELATIVOS (percentil ou multiplo de ATR), senao nunca dispara.
+- **O item ABERTO/ADIADO sobre 2026.01 esta RESPONDIDO, e negativo.** 2026-01 no
+  XAUUSDm tem spread carimbado em 160,0 (armadilha 13). O mes sai da MEDICAO. Sob
+  a R8 ele nao trava o projeto: e' defeito do historico de um broker, num mes —
+  trata-se com **coluna de proveniencia**, reportando os dois numeros.
+- **`SIG_PBSHALLOW`: REPROVADO**, 4 de 4 configuracoes. Ver 5.4.
+
+### Caminho critico (R8)
+
+1. **Auto-configuracao por conta.** Script que identifica corretora/servidor/conta/
+   tipo, varre o historico DAQUELA conta, mede **spread e comissao**, e calibra o
+   que depende de conta — inclusive o **degrau do breakeven, para que sair no BE
+   nao seja prejuizo**. Especificacao, com o conflito medido que ela precisa
+   resolver (lei 2: degrau acima de zero foi medido como negativo NA STANDARD),
+   em `docs\S-Doc-Portabilidade.md`. **Pela R7, comeca como coluna no EA de
+   medicao, nao como codigo operacional.**
+2. **Filtro de spread em termos RELATIVOS.** Tres formas candidatas medidas lado a
+   lado no EA de medicao. Estado: `spread/ATR` **nao** escolhe melhor que o
+   absoluto (descartado -455 contra -491, IC95 cruzando zero nos dois) e e' MENOS
+   estavel entre meses (CV 18,0% contra 9,8%); percentil movel ainda nao medido.
+   O ganho da forma relativa e' **portabilidade**, nao selecao.
+3. **Comissao.** Nunca foi medida. Zero e' suposicao. Numa Raw/Zero ela e' o custo
+   dominante e entra direto no degrau do BE.
+4. **`InpHistMax = 2,20` porta?** E' o segundo parametro nao adimensional do EA.
+   Testar em outro instrumento antes de chamar o desenho de portavel.
+5. **Base historica independente de corretora (Dukascopy)** — 4 anos, custom symbol,
+   coluna de **proveniencia** por periodo, modelo de spread por cima. Sob a R8
+   deixa de ser desejavel e vira **a unica forma de validar** sem depender do
+   historico de um broker. A base atual e' de **76 trades em 6,5 meses**, com dois
+   meses de zero trade: nao sustenta validacao de nada.
+
+### Depois
+
+6. **Estrutura de mercado** (`est_micro`/`est_macro`/`est_acordo`, ja' gravadas) —
+   medir cada componente ISOLADO. Voto ponderado so' depois: peso e' parametro, e
+   parametro sem medicao viola a R1.
+7. **StressLab** — slippage, spread elevado e latencia sobre a base historica.
+8. **Antes de conta real:** trava de simbolo/TF, limite de perda diaria, CSV em modo
+   append (`FILE_WRITE` trunca e perde historico se o terminal reiniciar), sizing na
+   moeda da conta (o stop escala com ATR: p90 = 2x a mediana).
+9. **Baixar o historico do servidor real** (`Exness-MT5Real41` tem so' 202608) e
+   refazer o teste de autenticidade la'. Se 2026-01 vier limpo no real, o mes volta.
 
 **Nao fazer:** varrer timeframes antes de ter desenho validado; testar osciladores da
 mesma familia; re-testar a lista de mortos; OOP antes de existir uma segunda
-estrategia que compartilhe codigo.
+estrategia que compartilhe codigo; **fixar no codigo qualquer valor que dependa da
+conta** (R8).
