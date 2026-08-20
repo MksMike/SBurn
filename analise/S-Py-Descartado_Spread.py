@@ -56,8 +56,21 @@
 #   dois grupos, que e' o que a pergunta comparativa exige.
 #
 #   Criterio em P&L: IC95 todo abaixo de zero -> rejeitados piores; IC95
-#   contendo zero e |diferenca| < custo (260 pts) -> normais; largura do IC95
-#   maior que 4x o custo -> sem poder.
+#   contendo zero, |diferenca| < custo (260 pts) E largura do IC95 <= 2x o
+#   custo -> normais; qualquer largura maior -> SEM PODER.
+#
+#   CORRECAO 2026-08-20: a largura-limite era 4x o custo, frouxa demais. Um IC
+#   de [-453, +381] cobre 3,2x o custo: nao distingue "rejeitados normais" de
+#   "rejeitados bem piores". Com 4x, a primeira rodada declarava NORMAIS um
+#   resultado que e' INCONCLUSIVO. O limite passa a 2x.
+#
+#   RESSALVA SOBRE `tr_1`, que muda o peso do resultado: foi escolhido por
+#   DISPONIBILIDADE (unica coluna sem sentinela), nao por pre-registro. E
+#   `InpTrail1=2000 pts` = 0,37 x ATR de TRAILING, enquanto o EA operacional usa
+#   BE no zero com stop 3,67 x ATR. Trailing esta' na lista de hipoteses MORTAS
+#   da secao 5.4 ("4 distancias + modulacao ATR; familia dominada"). O desfecho
+#   limitado disponivel pertence a uma familia ja' enterrada: o resultado NAO
+#   transfere para a estrategia titular. Serve como regua comparativa e nada mais.
 #
 # USO
 #   python analise\S-Py-Descartado_Spread.py [csv]
@@ -236,8 +249,9 @@ def main():
         d = x["tr_1"].mean() - y["tr_1"].mean()
         lo, hi = boot_pnl(x, y, "tr_1")
         larg = hi - lo
-        if larg > 4 * CORTE:
-            v = "SEM PODER (IC de %.0f pts, mais que 4x o custo)" % larg
+        if larg > 2 * CORTE:
+            v = ("SEM PODER (IC de %.0f pts = %.1fx o custo; limite 2x)"
+                 % (larg, larg / CORTE))
         elif hi < 0:
             v = "REJEITADOS PIORES - o filtro fez o trabalho dele"
         elif lo > 0:

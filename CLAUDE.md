@@ -384,6 +384,17 @@ outro recorte da mesma janela.
 > precisa de re-medicao antes de continuar sendo citada. Isso e' mais grave que a
 > propria exclusao de janeiro: poe em duvida o filtro que separa a config de 26,6x
 > das outras.
+>
+> **ACRESCIMO DE 2026-08-20 — razao independente, e nao substitui a de cima.**
+> Mesmo re-medido, o achado tem **n efetivo perto do numero de MESES, nao dos
+> sinais**. Medido nos 568 sinais da janela valida: **64,6% da variancia de
+> aceito/rejeitado e' explicada pelo MES** (eta^2); so' 35,4% mora dentro dos
+> meses. Taxas de rejeicao mensais: 54 / 96 / 100 / 100 / 56 / 0 / 5%. O filtro
+> quase nao seleciona DENTRO do mes — ele liga e desliga meses inteiros, e
+> apenas **2 dos 7** (fev, jun) tem os dois grupos com n>=20. Qualquer conclusao
+> do tipo "condicao de mercado, nao custo" se apoia em contraste ENTRE MESES com
+> ~6 unidades independentes. Continua plausivel; o suporte e' muito menor do que
+> 568 sinais sugerem.
 
 ### 5.4 Hipoteses MORTAS (nao re-testar)
 
@@ -693,6 +704,20 @@ nao mais o proximo experimento interessante.
    que passaram na triagem de sensores) pode estar medindo a janela errada.
 3. **Comissao.** Nunca foi medida. Zero e' suposicao. Numa Raw/Zero ela e' o custo
    dominante e entra direto no degrau do BE.
+3a-bis. **Filtro de spread — estado em 2026-08-20.** Teste do descartado:
+   **INCONCLUSIVO**, nao favoravel. IC95 [-453, +381] pts contra custo de 260
+   (3,2x o custo de largura) no teste confundido por mes, e SEM PODER no teste
+   limpo. A frente segue **por ausencia de evidencia contraria, nao por
+   evidencia a favor**. Ressalva: o desfecho usado (`tr_1`) foi escolhido por
+   disponibilidade e e' trailing de 0,37xATR — familia MORTA na 5.4; nao
+   transfere para a titular. **E o desenho muda:** com 2 a 12 valores distintos
+   de spread por mes (19 em 568 sinais), **percentil movel e' DEGENERADO** — nao
+   ha' selecao dentro do mes, o filtro relativo vira **INTERRUPTOR MENSAL**. A
+   pergunta deixa de ser "qual percentil" e passa a ser "operar ou nao em mes de
+   spread alto": instrumento mais cru, que exige justificativa propria.
+   **Contagem de distintos NAO invalidou mes nenhum** — e' exatamente o teste
+   que a armadilha 13 enterrou por inverter vereditos (janeiro tem 343 e e'
+   podre; julho tem 11 e e' bom).
 3b. **Re-medir o valor do filtro de spread** (5.3). Na janela valida ele nao tem
    valor de selecao detectavel (p=0,431). E' o achado mais incomodo do dia e poe
    em duvida a config de referencia.
@@ -732,14 +757,20 @@ nao mais o proximo experimento interessante.
    e' pre-registrar UMA hipotese.
 5c. **Remedir a familia calendario com codificacao adequada.** NAO esta'
    enterrada: o teste de 2026-08-20 foi invalido, nao negativo (armadilha 17c).
-   **Pre-registro, escrito antes de rodar:** blocos categoricos de 3h, com as
-   fronteiras ancoradas na hora do servidor **MEDIDA** pelo
-   `S-Py-Fuso_Servidor.py`, nunca assumida. Criterio: efeito consistente em
-   >=5 dos 7 meses E sobrevivendo a correcao para 8 comparacoes.
-   **Por que bloco e nao seno/cosseno:** o perfil observado troca de sinal
-   QUATRO vezes por dia; um par seno/cosseno so' representa UM ciclo diario e
-   perderia a estrutura por construcao. Harmonicos maiores resolveriam, mas
-   custam 4-6 colunas e trazem de volta o problema de comparacoes multiplas.
+   **Pre-registro, CORRIGIDO em 2026-08-20:** blocos cujas fronteiras sao
+   **FRONTEIRAS DE SESSAO MEDIDAS** (Toquio, Londres, Nova York, pelo fuso que o
+   `S-Py-Fuso_Servidor.py` apurar), **nunca grade aritmetica**. Teste
+   **OMNIBUS** — um teste so' sobre todos os blocos, nao bloco a bloco.
+   Criterio: omnibus significativo E direcao consistente em >=5 dos 7 meses.
+   **Por que bloco e nao seno/cosseno:** o perfil troca de sinal QUATRO vezes por
+   dia; um par seno/cosseno representa UM ciclo diario e perderia a estrutura por
+   construcao.
+   **Duas correcoes ao que eu tinha escrito:** (i) o argumento de multiplicidade
+   NAO fechava — 8 blocos sao 8 celulas, nao menos superficie que 4-6 colunas
+   harmonicas; o que resolve e' o teste ser omnibus, e ai' os dois viram um teste
+   so'. (ii) grade de 3h alinhada a' meia-noite do servidor carrega **parametro
+   escondido de origem** (por que 3h? por que essa ancora?) — o mesmo defeito que
+   derrubou o H8. Fronteira de sessao tem origem justificavel.
    **Depende da fila 2b:** sem o fuso medido, as fronteiras dos blocos nao tem
    ancora e o teste nasce com o mesmo defeito de origem.
 6. **Estrutura de mercado** (`est_micro`/`est_macro`/`est_acordo`, ja' gravadas) —
