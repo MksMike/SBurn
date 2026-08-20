@@ -406,7 +406,15 @@ TP por quantil e parcial · trailing (4 distancias + modulacao ATR; familia domi
 degrau de BE acima de zero (+0,05xATR custa 1.700 pts/trade) · folga de BE abaixo de
 zero (grade 4x5: o zero e' o maximo) · contra-trade pos-breakeven (0 de 12
 combinacoes) · MACROSS/cruzamento PAC x EMAs (-2.972/trade, 8/8 meses negativos) ·
-osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
+**SIG_SP em M1** (medido 2026-08-20 com o desfecho titular `tit_pnl`: 315 sinais
+filtrados, **total -25,50 ATR**, media -0,081, **negativo em IS (-0,100) E em OOS
+(-0,065)**, contra +146,43 / +1,743 do M5 na mesma janela e mesmo desfecho. A
+frequencia EXISTE — 18,36 sinais/dia crus contra 3,57 do M5 — mas a borda nao
+sobrevive ao custo nesse horizonte: `custo/stop` vai de 1,4% no M5 para **3,4%**
+no M1, porque `ATR_M1/ATR_M5 = 0,42` (raiz do tempo preveria 0,45) e o spread
+continua 280. A cauda encolhe junto: 13% de ganhadores a +10.223 pts no M1
+contra 26% a +39.098 no M5. E 86% dos trades M1 fecham em ate' 30 min, faixa
+que o projeto ja' mediu como negativa) · osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
 
 ### 5.5 Leis empiricas
 
