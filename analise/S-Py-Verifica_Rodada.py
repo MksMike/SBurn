@@ -312,7 +312,12 @@ def main():
             "falhas_esperadas": le_falhas(a.log),
             "inputs": inputs,
         }
-        io.open(a.gravar, "w", encoding="utf-8").write(
+        # newline="" e' obrigatorio: em modo texto no Windows o Python
+        # converte 
+ em 
+ e o arquivo sai em CRLF, quebrando a
+        # invariante `* -text` do repositorio.
+        io.open(a.gravar, "w", encoding="utf-8", newline="").write(
             json.dumps(novo, indent=2, ensure_ascii=False) + "\n")
         print("")
         print("  referencia GRAVADA em %s" % a.gravar)
