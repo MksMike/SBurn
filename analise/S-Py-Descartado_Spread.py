@@ -72,6 +72,28 @@
 #   limitado disponivel pertence a uma familia ja' enterrada: o resultado NAO
 #   transfere para a estrategia titular. Serve como regua comparativa e nada mais.
 #
+#   TERCEIRA RODADA (2026-08-20), com o DESFECHO TITULAR `tit_pnl`.
+#   As duas primeiras pararam em INCONCLUSIVO por falta de poder: assimetria
+#   tem IQR de 4,37 ATR contra um efeito procurado de ~0,05, e `tr_1` e' de
+#   familia morta. `tit_pnl` tem IQR de 0,06 ATR e poder de 98% em 0,025 ATR.
+#
+#   CRITERIO, escrito antes de olhar (IC95 bootstrap por DIA):
+#     T1  rejeitados de abr+mai x aceitos dos outros meses  (CONFUNDIDO por mes)
+#     T2  rejeitados x aceitos DENTRO de fev e jun          (limpo quanto a mes)
+#     T3  CONTRAFACTUAL: qual teria sido o P&L de abril+maio se operados?
+#         E' a pergunta de DECISAO do interruptor mensal, e so' agora e'
+#         respondivel. Nao e' comparacao: e' a soma direta.
+#
+#     T3 claramente POSITIVO   -> a regua estava presa; operar meses de spread
+#                                 alto adiciona lucro. Frente segue, com numero.
+#     T3 claramente NEGATIVO   -> o filtro fez o trabalho dele. FRENTE MORRE.
+#     T3 com IC cruzando zero  -> inconclusivo mesmo com poder; registrar.
+#
+#   VALIDADE DA SOMA em T3: `tit_pnl` simula saida no PROXIMO SINAL BRUTO, que
+#   e' o que o operacional faz. Trades consecutivos NAO se sobrepoem — cada um
+#   termina quando o proximo sinal aparece. Entao somar sobre o subconjunto
+#   filtrado reproduz a sequencia operacional, nao um empilhamento.
+#
 # USO
 #   python analise\S-Py-Descartado_Spread.py [csv]
 #
