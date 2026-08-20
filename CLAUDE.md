@@ -1,5 +1,5 @@
 # CLAUDE.md — Projeto SBurn
-**Versao:** 5.0 | **Atualizado:** 2026-08-19
+**Versao:** 5.1 | **Atualizado:** 2026-08-20
 Leia por completo antes da primeira acao. Em conflito, este arquivo vence.
 
 ---
@@ -29,6 +29,18 @@ e calibra o que depende de conta — inclusive o degrau do breakeven, para que s
 no BE nao seja prejuizo. Especificacao completa, com o conflito medido que ela
 precisa resolver, em **`docs\S-Doc-Portabilidade.md`**. Nada disso esta
 implementado.
+
+### Existe uma SEGUNDA fonte de tick desde 2026-08-20
+
+O projeto deixou de depender do historico de uma corretora. Existe agora um
+custom symbol **`XAUUSD_EXNESS_STANDARD`** com **24 meses de tick real da
+Dukascopy** (2024-08 a 2026-07, 156.638.854 ticks) mais uma camada de custo da
+Exness **medida**, ja' registrado no MT5.
+
+**Antes de rodar qualquer backtest, decidir em qual das duas fontes — e ler
+`docs\S-Doc-Base_Dukascopy.md`.** A escolha nao e' indiferente: medido, os dois
+feeds dao **-39% de lucro** um contra o outro na mesma janela, com as mesmas
+barras (lei 6 da secao 5.5). O sinal transfere; a magnitude nao.
 
 Interlocutor: Mike, dev MQL5, PT-BR, no Japao.
 **Responder em portugues do Brasil. Comentarios de codigo em portugues SEM acentos.**
@@ -165,6 +177,35 @@ imprime no log.
 > Consequencia: a mediana de spread de 260 e' a do Trial5. Sob a R8 isso deixa de
 > ser um problema a corrigir e passa a ser o caso de uso normal — mas **tem de
 > estar declarado**, e estava errado.
+
+> **CORRECAO de 2026-08-20:** `Exness-MT5Real41` **nao tem mais so' 202608**. Hoje
+> tem `202601..202608` (202603 sozinho com 162 MB). O item 9 da fila ficou mais
+> barato do que esta' escrito la'.
+
+### 3.1 SEGUNDA FONTE DE TICK — existe desde 2026-08-20 (ler antes de rodar)
+
+Alem do XAUUSDm da Exness, o projeto tem agora um **custom symbol de 24 meses,
+independente de corretora**, ja' registrado no MT5 e verificado pelo tester:
+
+| | |
+|---|---|
+| Simbolo | **`XAUUSD_EXNESS_STANDARD`** |
+| Janela | **2024-08-01 a 2026-07-31** (24 meses) |
+| Conteudo | **156.638.854 ticks reais da Dukascopy + 704.636 barras M1** |
+| Construcao | mid da Dukascopy preservado + spread da Exness por cima |
+| Repositorio da base | `C:\dev\Historico` (**SEM acento** — o acentuado guarda so' o export do MT5) |
+| **Documentacao completa** | **`docs\S-Doc-Base_Dukascopy.md`** |
+
+**Como configurar um backtest nele, o que ele mede e o que ele NAO mede: tudo
+em `docs\S-Doc-Base_Dukascopy.md`.** Os tres pontos que mais pegam:
+
+1. **`InpMaxSpread` NAO funciona neste simbolo.** O spread e' constante dentro de
+   cada mes, entao o filtro vira **interruptor mensal** — com `260` ele opera so'
+   junho e julho de 2026. Rodar com `InpMaxSpread=99999` para medir qualquer
+   outra coisa.
+2. **18 dos 24 meses tem spread EXTRAPOLADO** (290 pts). So' 2026-02..07 e'
+   medido — a Exness nao tem historico antes de 2026-01.
+3. **Serve para comparacao RELATIVA, nao para nivel absoluto** — ver a lei 6.
 
 **Backtest so' com "Every tick based on real ticks".** O desenho e' path-dependent
 (63% dos trades saem pelo breakeven, que depende do caminho intrabar): qualquer teste
@@ -450,6 +491,16 @@ que o projeto ja' mediu como negativa) · osciladores primos (MACD/RSI/TrendWave
 3. **Filtro e' bom ou ruim PARA UM EVENTO**, nunca em abstrato.
 4. **A volatilidade do ouro paga a conta.** Custo/ATR: XAUUSD 4,8% vs USDJPY 23,1%.
 5. **O olho amostra a cauda; o CSV conta tudo.**
+6. **O sinal transfere entre feeds; a MAGNITUDE nao.** Medido em 2026-08-20:
+   mesmo EA, mesma janela (2026.02-07), mesma config, dois feeds reais do mesmo
+   ativo cujas barras correlacionam **0,998** — e o lucro da **742,79 contra
+   451,88 (-39%)**. Trades 272 vs 286, acerto 19,49% vs 18,88%, e o trade que
+   vale 34,7% do total aparece nos dois com **$0,49 de diferenca**: o sinal e' o
+   mesmo. **O buraco nao e' custo** — o spread INTEIRO custa $82,94, e o buraco
+   e' 3,5x isso; custo explica **1,4%**. E' o **caminho intrabar**, e ele muda a
+   perda media em +15% e a pior perda em +113%. **Nenhum numero de lucro deste
+   projeto vale sem dizer em que feed foi medido.** Uma janela so' — ver
+   `docs\S-Doc-Base_Dukascopy.md` secao 6.4 para os limites.
 
 ---
 
@@ -629,6 +680,13 @@ que o projeto ja' mediu como negativa) · osciladores primos (MACD/RSI/TrendWave
     (`demo account`), e `bases\<servidor>	icks\<simbolo>\*.tkc` — o servidor
     que tem os arquivos e' o que alimentou o backtest. **Conferir antes de citar
     qualquer numero como sendo "da conta X".**
+    **CORRECAO de 2026-08-20:** o `Exness-MT5Real41` **nao tem mais so' 202608**
+    — hoje tem `202601..202608` (202603 com 162 MB). O criterio de "quem tem os
+    arquivos alimentou o backtest" **deixou de discriminar sozinho**, porque
+    agora os dois servidores tem os 8 meses. Use o cabecalho do relatorio.
+    **E ha' um terceiro servidor a considerar desde 2026-08-20:** `Custom`, com
+    `XAUUSD_EXNESS_STANDARD`. Custom symbol vive em `bases\Custom\` e **nao
+    depende do servidor logado** — ver `docs\S-Doc-Base_Dukascopy.md`.
 15. **Teste de autenticidade calibrado no indicador errado erra na CAUDA — que
     e' onde o defeito mora.** O criterio para reprovar um periodo passou por
     quatro versoes em um dia, e cada uma so' caiu porque foi rodada em dado real:
@@ -694,6 +752,30 @@ que o projeto ja' mediu como negativa) · osciladores primos (MACD/RSI/TrendWave
     viraram "2 posicoes" numa leitura e 15 modifies noutra. Log de tester nao e'
     unidade de medida: contar sempre pelo contador do proprio EA, que zera a cada
     rodada, ou delimitar o trecho da rodada antes de contar.
+
+19. **Custom symbol: `taskkill /F` apaga o REGISTRO; e `/config` com terminal
+    aberto e' ignorado em SILENCIO.** Duas armadilhas que se combinam e custaram
+    uma rodada mais uma acao manual em 2026-08-20.
+    (a) Rodar o tester por CLI **exige o terminal fechado**. Com instancia viva o
+    MT5 aceita o comando, **nao roda nada, nao gera relatorio e nao diz por
+    que** — parece que o teste falhou.
+    (b) Fechar com `taskkill /F` mata sem deixar o terminal persistir o registro
+    dos custom symbols. **O dado sobrevive** (`bases\Custom\ticks\<simbolo>\`
+    com 768 MB e os 24 `.tkc` intactos), **o registro nao**: o tester passa a
+    dizer `symbol ... not exist` / `cannot select symbol in market watch`. E
+    **abrir e fechar o terminal normalmente NAO reconstroi** — testado.
+    **Fechar sempre com `taskkill /PID <pid>` SEM `/F`.**
+    O conserto e' caro: script MQL5 **nao tem entrada por linha de comando**,
+    `CustomSymbolCreate` **nao funciona dentro do tester**, e nao ha' registro de
+    servico em arquivo editavel (`Services=` no `common.ini` e' bitmask, nao
+    lista). Cada re-registro custa um arrastar-para-o-grafico.
+20. **Comparar passo do BID entre meses de niveis de preco diferentes nao mede
+    autenticidade.** O teste da armadilha 15d vale **so' contra meses do mesmo
+    regime**. Na base de 24 meses o ouro foi de ~2.464 para ~4.987, e passo em
+    PONTOS escala com o preco: 2024 da' p90 60-70 e 2026 da' 130-260 sem que isso
+    signifique nada. Normalizar por pts/min **tambem nao resolve** — cria
+    tendencia propria (0,013 em 2024 -> 0,008 em 2026) e faria 2026-01 parecer
+    0,62x da mediana da janela quando contra os vizinhos ele e' 0,85x.
 
 ---
 
@@ -807,11 +889,23 @@ nao mais o proximo experimento interessante.
    Ou grava, ou os relatorios `.htm` passam a ser versionados.
 4. **`InpHistMax = 2,20` porta?** E' o segundo parametro nao adimensional do EA.
    Testar em outro instrumento antes de chamar o desenho de portavel.
-5. **Base historica independente de corretora (Dukascopy)** — 4 anos, custom symbol,
-   coluna de **proveniencia** por periodo, modelo de spread por cima. Sob a R8
-   deixa de ser desejavel e vira **a unica forma de validar** sem depender do
-   historico de um broker. A base atual e' de **76 trades em 6,5 meses**, com dois
-   meses de zero trade: nao sustenta validacao de nada.
+5. ~~Base historica independente de corretora (Dukascopy)~~ — **CONSTRUIDA em
+   2026-08-20.** Custom symbol **`XAUUSD_EXNESS_STANDARD`**: 24 meses
+   (2024-08-01 a 2026-07-31), **156.638.854 ticks reais + 704.636 barras M1**,
+   com camada de custo medida e etiqueta de proveniencia por periodo. Ja'
+   registrado no MT5 e verificado pelo tester. **Documentacao:
+   `docs\S-Doc-Base_Dukascopy.md`** — ler antes de rodar qualquer coisa nele.
+   Sao 2 anos, nao 4: 2022-01 a 2024-07 (31 meses) travam no 429 da Dukascopy,
+   que e' cota cumulativa; plano realista e' um punhado de meses por dia.
+   **O que ele resolveu:** a amostra deixa de ser 76 trades em 6,5 meses com
+   dois meses de zero operacao.
+   **O que ele NAO resolveu, e e' novo:** a lei 6. Magnitude nao transfere entre
+   feeds (-39% de lucro no par medido), entao o simbolo serve para **comparacao
+   relativa**, nao para nivel absoluto de P&L na Exness.
+5a. **Rodar os 24 meses de ponta a ponta — NUNCA foi feito.** As duas rodadas no
+   simbolo foram de 6 meses (2026.02-07). 156M ticks e' outra escala de memoria e
+   tempo, e o inicio da serie (2024-08-01) nao tem historico anterior para o
+   aquecimento do regime M30. Medir antes de citar qualquer numero de 2 anos.
 
 ### Depois
 
@@ -869,8 +963,20 @@ nao mais o proximo experimento interessante.
 8. **Antes de conta real:** trava de simbolo/TF, limite de perda diaria, CSV em modo
    append (`FILE_WRITE` trunca e perde historico se o terminal reiniciar), sizing na
    moeda da conta (o stop escala com ATR: p90 = 2x a mediana).
-9. **Baixar o historico do servidor real** (`Exness-MT5Real41` tem so' 202608) e
-   refazer o teste de autenticidade la'. Se 2026-01 vier limpo no real, o mes volta.
+9. **Baixar o historico do servidor real** e refazer o teste de autenticidade la'.
+   **Ficou mais barato:** `Exness-MT5Real41` **ja' tem `202601..202608`** (nao
+   so' 202608 como a armadilha 14 dizia) — 202603 sozinho tem 162 MB. Falta so'
+   exportar e rodar o `S-Py-Perfil_Spread.py`.
+   **E ficou parcialmente RESPONDIDO por outro caminho, em 2026-08-20:** no feed
+   da **Dukascopy**, 2026-01 **passa** no teste do passo p90 do BID — **1,17x** a
+   referencia dos meses de 2026 e 1,25x a do regime de preco >= 4000, contra o
+   criterio de reprovacao de 0,6x. No feed da Exness o mesmo mes da' **0,34x**.
+   **O defeito de 2026-01 e' do historico da Exness, nao do mes.** No custom
+   symbol janeiro entra com tick real e spread extrapolado de 290 pts, nunca com
+   os 160 carimbados. Isso **nao** revalida os numeros de janeiro ja' medidos —
+   aqueles sairam do feed reprovado — mas torna legitimo **re-rodar** janeiro no
+   simbolo novo. Ver `docs\S-Doc-Base_Dukascopy.md` secao 7 (inclui o cuidado de
+   metodo da armadilha 20).
 
 **Nao fazer:** varrer timeframes antes de ter desenho validado; testar osciladores da
 mesma familia; re-testar a lista de mortos; OOP antes de existir uma segunda
