@@ -628,8 +628,13 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     inteiramente de ONDE o corte cai. Medido em 2026-08-20 deslizando a
     referencia de `cal_lon`: em `InpSrvLon=7` o efeito **INVERTE** (+0,105
     contra -0,227); em 9 cai a um terco. So' passava no crivo no valor exato que
-    estava assumido. **A familia calendario saiu da triagem** — nao por causa do
-    fuso, por causa do metodo. Variavel ciclica exige analise por faixa horaria.
+    estava assumido. **A familia calendario sai da triagem como TESTE INVALIDO,
+    nao como hipotese reprovada** — a distincao importa: instrumento quebrado
+    nao produz veredito em direcao nenhuma. E ha' evidencia apontando para o
+    outro lado dentro do proprio achado: a oscilacao de quatro trocas de sinal
+    E' estrutura, e a codificacao linear a destruiu em vez de demonstrar
+    ausencia. `(minutos - 480) mod 1440` poe 07:59 e 08:00 nos extremos opostos
+    da escala sendo instantes vizinhos. Remedicao pendente — ver a fila 5c.
 18. **Falha ao armar o breakeven nao entra em NENHUM contador.** A linha de resumo
     reporta `sinal/contexto/abrir/fechar`; BE nao esta' la'. `g_tentBE` e' por
     posicao e o `Print` so' sai na 1a tentativa. Pior: apos `InpMaxTentBE` falhas
@@ -721,10 +726,22 @@ nao mais o proximo experimento interessante.
    `SIG_SP` na janela valida: **568 sinais, 7 meses, distribuicao uniforme**.
    Sobreviveram ao crivo: `vol_std` (+0,606 ATR, 6/7 meses), `vol_eff`
    (Efficiency Ratio, +0,367, 5/7), `est_macro` (-0,288, 6/7) e `liq_r50`
-   (-0,237, 5/7). **A familia calendario foi RETIRADA** em 2026-08-20 — corte
-   pela mediana em variavel ciclica, armadilha 17c. **E' peneira, nao achado**:
+   (-0,237, 5/7). **A familia calendario saiu como TESTE INVALIDO** em
+   2026-08-20 (armadilha 17c), nao como reprovada — ver 5c. **E' peneira, nao achado**:
    ~20 sensores testados, sem correcao para comparacoes multiplas. Proximo passo
    e' pre-registrar UMA hipotese.
+5c. **Remedir a familia calendario com codificacao adequada.** NAO esta'
+   enterrada: o teste de 2026-08-20 foi invalido, nao negativo (armadilha 17c).
+   **Pre-registro, escrito antes de rodar:** blocos categoricos de 3h, com as
+   fronteiras ancoradas na hora do servidor **MEDIDA** pelo
+   `S-Py-Fuso_Servidor.py`, nunca assumida. Criterio: efeito consistente em
+   >=5 dos 7 meses E sobrevivendo a correcao para 8 comparacoes.
+   **Por que bloco e nao seno/cosseno:** o perfil observado troca de sinal
+   QUATRO vezes por dia; um par seno/cosseno so' representa UM ciclo diario e
+   perderia a estrutura por construcao. Harmonicos maiores resolveriam, mas
+   custam 4-6 colunas e trazem de volta o problema de comparacoes multiplas.
+   **Depende da fila 2b:** sem o fuso medido, as fronteiras dos blocos nao tem
+   ancora e o teste nasce com o mesmo defeito de origem.
 6. **Estrutura de mercado** (`est_micro`/`est_macro`/`est_acordo`, ja' gravadas) —
    medir cada componente ISOLADO. Voto ponderado so' depois: peso e' parametro, e
    parametro sem medicao viola a R1.

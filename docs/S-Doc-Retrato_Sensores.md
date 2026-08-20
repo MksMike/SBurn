@@ -83,7 +83,7 @@ Assimetria de todos os sinais: +0,054 ATR (5 barras), +0,051 (15), +0,002 (30).
 | liquidez | `liq_r50` > mediana | −0,237 ATR | 5/7 |
 | ~~calendario~~ | ~~`cal_lon` > mediana~~ | **RETIRADO** | ver 4.1 |
 
-### 4.1 A familia calendario foi RETIRADA (2026-08-20)
+### 4.1 A familia calendario: TESTE INVALIDO (2026-08-20)
 
 Teste de robustez pedido pelo Mike: deslizar a janela do `cal_lon` em ±1h.
 
@@ -109,10 +109,16 @@ depende inteiramente de onde o corte cai. `cal_asia` e `cal_ny` tem a mesma
 construcao e caem junto. Registrado como armadilha 17c; o script agora **recusa**
 cortar variavel ciclica pela mediana.
 
-O que sobra da familia: nada, por enquanto. Ha' estrutura horaria visivel na
-tabela acima, mas medi-la exige analise por faixa, com criterio pre-registrado —
-nao mediana. E o fuso continua nao medido, entao ate' as faixas estao rotuladas
-com hora do servidor de origem desconhecida (fila 2b).
+**Isto NAO e' veredito negativo.** Instrumento quebrado nao decide em direcao
+nenhuma, e enterrar a familia por aqui seria tratar ausencia de medicao valida
+como prova de inexistencia. Pelo contrario: a oscilacao de quatro trocas de
+sinal **e' estrutura**, e a codificacao linear a destruiu em vez de mostrar que
+nao existe — `(minutos − 480) mod 1440` poe 07:59 e 08:00 nos extremos opostos
+da escala sendo instantes vizinhos.
+
+Status: **remedicao pendente**, pre-registrada na fila 5c (blocos categoricos de
+3h ancorados no fuso MEDIDO). Precedente do projeto: o TMO reprovou como gatilho
+e passou como veto — veredito e' local a' pergunta, nao ao sensor.
 
 **As outras quatro nao sao afetadas:** `vol_std`/`vol_eff` sao continuas,
 `est_macro` e' concordancia, `liq_r50` e' distancia limitada. Nenhuma envolve.
