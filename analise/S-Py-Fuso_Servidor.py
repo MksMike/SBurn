@@ -152,6 +152,19 @@ def carregar_minutos(caminho):
     de sobra para medir um deslocamento de 1 HORA. O custo de memoria deixa de
     depender do tamanho do arquivo.
     """
+    # Cache: agregar 63M ticks a minutos leva minutos de CPU e o resultado e'
+    # deterministico. A chave inclui o TAMANHO do arquivo, entao export
+    # re-exportado (tamanho diferente) invalida o cache sozinho.
+    cache = os.path.join(os.environ.get('TEMP', '.'),
+                         'sburn_minutos_%s_%d.csv'
+                         % (os.path.basename(caminho)[:40].replace('.', '_'),
+                            os.path.getsize(caminho)))
+    if os.path.isfile(cache):
+        c = pd.read_csv(cache, sep=';')
+        sc = pd.Series(c['n'].values,
+                       index=pd.to_datetime(c['minuto'])).sort_index()
+        return sc, int(c['n'].sum())
+
     with open(caminho, 'r', encoding='utf-8', errors='ignore') as f:
         cabecalho = f.readline()
     sep = _detectar_sep(cabecalho)
@@ -186,6 +199,8 @@ def carregar_minutos(caminho):
 
     s = pd.Series(valores, index=momentos).dropna()
     s = s[~s.index.isna()].sort_index()
+    pd.DataFrame({'minuto': s.index, 'n': s.values}).to_csv(cache, sep=';',
+                                                           index=False)
     return s, linhas
 
 
@@ -375,9 +390,28 @@ def main():
         linha('  >>> Menos de 3 fronteiras limpas. Evidencia insuficiente.')
         return 1
 
+    # --------------------------------------------------------------- 3b
+    bloco('3b. OFFSET POR SEMANA (calculado ANTES de procurar transicao)')
+    linha('  A hora BRUTA da fronteira se move quando NOVA YORK troca de DST:')
+    linha('  o ancora se desloca, nao o servidor. Procurar transicao na hora')
+    linha('  bruta confunde as duas coisas — foi o que fez a v1.00 declarar')
+    linha('  "nenhum candidato bate" num arquivo em que o servidor simplesmente')
+    linha('  nao muda. Transicao DO SERVIDOR e' + "'" + ' salto no OFFSET, que ja' + "'")
+    linha('  desconta o DST de Nova York.')
+    linha()
+    _br = []
+    for _, r in limpo.iterrows():
+        e = r['fec_tod'] - (17.0 - offset_ny(r['fechamento']))
+        _br.append(((e + 12) % 24) - 12)
+    _br = np.array(_br)
+    _res = float(np.median(_br - np.round(_br)))
+    off_sem = np.round(_br - _res).astype(int)
+    linha('  offset por semana: %s' % ', '.join('%+d' % i for i in off_sem))
+    linha('  residuo mediano  : %+.1f min' % (_res * 60))
+
     # ---------------------------------------------------------------- 4
-    bloco('4. TRANSICOES DETECTADAS')
-    base = limpo['fec_tod'].round(2)
+    bloco('4. TRANSICOES DETECTADAS (no OFFSET do servidor)')
+    base = pd.Series(off_sem.astype(float))
     saltos = []
     for i in range(1, len(limpo)):
         d = base.iloc[i] - base.iloc[i - 1]
@@ -387,9 +421,18 @@ def main():
             d += 24
         if abs(d) >= 0.5:
             # confirmacao: o novo patamar precisa PERSISTIR
+            # Um salto REAL separa DOIS patamares. Exigir estabilidade so'
+            # DEPOIS deixa passar o retorno de uma excursao de uma semana:
+            # sexta truncada por falha de feed cai, volta, e a VOLTA parece
+            # "confirmada" porque dali em diante tudo e' estavel. Medido em
+            # 2026-08-20: 2026-06-19 e 2026-07-03 fecham 4h cedo (lacuna 53h
+            # contra 49h) e o retorno em 2026-07-10 era declarado transicao.
+            antes = base.iloc[max(0, i - SEMANAS_CONFIRMACAO):i]
             resto = base.iloc[i:i + SEMANAS_CONFIRMACAO]
             persiste = (len(resto) >= SEMANAS_CONFIRMACAO and
-                        (resto.max() - resto.min()) < 0.5)
+                        (resto.max() - resto.min()) < 0.5 and
+                        len(antes) >= SEMANAS_CONFIRMACAO and
+                        (antes.max() - antes.min()) < 0.5)
             saltos.append({
                 'data': limpo['fechamento'].iloc[i],
                 'delta_h': d,
@@ -398,17 +441,22 @@ def main():
             })
 
     if not saltos:
-        linha('  Nenhuma transicao na janela. O offset foi CONSTANTE aqui.')
-        linha('  Isso NAO identifica o calendario — so' + "'" +
-              ' diz que ele nao virou.')
-        alertas.append('Sem transicao observada: calendario NAO identificado. '
-                       'Nao extrapolar o offset para fora desta janela.')
+        linha('  Nenhuma transicao no OFFSET: o relogio do servidor NAO mudou')
+        linha('  nesta janela.')
+        linha()
+        linha('  Isso e' + "'" + ' informacao POSITIVA, nao ausencia de medicao: se a')
+        linha('  janela contem a data de virada de um calendario candidato e o')
+        linha('  offset NAO saltou nela, esse calendario fica EXCLUIDO — o')
+        linha('  servidor nao o segue. Ver secao 5.')
     else:
         for s in saltos:
+            rot = ('CONFIRMADA' if s['confirmado'] else
+                   'NAO confirmada (patamar instavel) — tratar como suspeita')
+            if abs(abs(s['delta_h']) - 1.0) > 0.25:
+                rot += (" | NAO EH DST: salto de %+.0fh; horario de verao eh +-1h"
+                        % s['delta_h'])
             linha('  %s  %+.2f h  (%.2f -> %.2f)  %s' %
-                  (s['data'].date(), s['delta_h'], s['de'], s['para'],
-                   'CONFIRMADA' if s['confirmado'] else
-                   'NAO confirmada (patamar instavel) — tratar como suspeita'))
+                  (s['data'].date(), s['delta_h'], s['de'], s['para'], rot))
 
     # ---------------------------------------------------------------- 5
     bloco('5. IDENTIFICACAO DO CALENDARIO')
@@ -422,9 +470,12 @@ def main():
         datas, fonte = transicoes(nome, ini, fim)
         prev = ', '.join(str(d.date()) for d in datas) or '(nenhuma)'
         if not conf:
-            veredito = '-'
+            # Sem salto no offset, todo candidato que VIRA dentro da janela
+            # fica excluido: se o servidor o seguisse, teria saltado junto.
+            veredito = ('EXCLUIDO (virou na janela, offset nao saltou)'
+                        if datas else '- (nao vira nesta janela)')
         else:
-            ok = all(any(abs((pd.Timestamp(s['data'].date()) - d).days) <= 3
+            ok = all(any(abs((pd.Timestamp(s['data'].date()) - d).days) <= 7   # semanal: a virada de domingo so' aparece na sexta
                          for d in datas) for s in conf) and \
                  len(datas) == len(conf)
             veredito = 'SIM' if ok else 'nao'
@@ -439,6 +490,16 @@ def main():
                        'usadas as REGRAS VIGENTES de DST — calendario civil '
                        'muda por lei; conferir se a janela e' + "'" + ' antiga.')
 
+    if not conf:
+        excl = [n for n in candidatos if transicoes(n, ini, fim)[0]]
+        if excl:
+            linha()
+            linha('  >>> SERVIDOR COM OFFSET FIXO nesta janela.')
+            linha('      Excluidos por terem virado sem que o offset saltasse:')
+            for n in excl:
+                linha('        - %s' % n)
+            linha('      O deslocamento visivel na hora BRUTA da fronteira e' + "'")
+            linha('      o DST de NOVA YORK (o ancora), nao do servidor.')
     if compat:
         linha('  Compativel com: %s' % ', '.join(compat))
         linha('  Europe/London e Europe/Berlin viram no MESMO instante e sao')
@@ -550,25 +611,42 @@ def main():
         vals = inteiros[sel.values] if sel.any() else np.array([])
         if len(vals) == 0:
             continue
+        modo = int(pd.Series(vals).mode().iloc[0])
+        fora = int((vals != modo).sum())
+        if compat:
+            cal = '|'.join(compat)
+        elif not conf and [n for n in candidatos if transicoes(n, ini, fim)[0]]:
+            # Nenhum salto de offset e ha' candidato que virou na janela:
+            # a conclusao NAO e' "nao identificado", e' "nao segue nenhum".
+            cal = 'OFFSET FIXO (candidatos excluidos)'
+        else:
+            cal = 'NAO IDENTIFICADO'
         per.append({
             'inicio': a, 'fim': b,
-            'offset_h': int(pd.Series(vals).mode().iloc[0]),
+            'offset_h': modo,
             'n_semanas': int(len(vals)),
-            'estavel': bool(len(set(vals.tolist())) == 1),
-            'calendario': '|'.join(compat) if compat else 'NAO IDENTIFICADO',
+            'semanas_fora_do_modo': fora,
+            'estavel': bool(fora == 0),
+            'calendario': cal,
         })
     tab = pd.DataFrame(per)
 
     if tab.empty:
         linha('  Sem periodos estimaveis.')
     else:
-        linha('  %-19s %-19s %8s %10s %9s %s' %
-              ('inicio', 'fim', 'offset', 'n_semanas', 'estavel',
+        linha('  %-19s %-19s %8s %10s %6s %9s %s' %
+              ('inicio', 'fim', 'offset', 'n_semanas', 'fora', 'estavel',
                'calendario'))
         for _, r in tab.iterrows():
-            linha('  %-19s %-19s %+8d %10d %9s %s' %
+            linha('  %-19s %-19s %+8d %10d %6d %9s %s' %
                   (r['inicio'], r['fim'], r['offset_h'], r['n_semanas'],
+                   r['semanas_fora_do_modo'],
                    'sim' if r['estavel'] else 'NAO', r['calendario']))
+        if (tab['semanas_fora_do_modo'] > 0).any():
+            linha()
+            linha('  `fora` conta semanas cujo offset difere do modo. Conferir se')
+            linha('  sao mudanca de relogio ou FALHA DE DADO: sexta que fecha')
+            linha('  cedo por feed truncado aparece aqui e nao e' + "'" + ' fuso.')
         if args.saida:
             tab.to_csv(args.saida, index=False, sep=';')
             linha()

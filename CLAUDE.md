@@ -693,7 +693,23 @@ nao mais o proximo experimento interessante.
    absoluto (descartado -455 contra -491, IC95 cruzando zero nos dois) e e' MENOS
    estavel entre meses (CV 18,0% contra 9,8%); percentil movel ainda nao medido.
    O ganho da forma relativa e' **portabilidade**, nao selecao.
-2b. **Fuso do servidor.** `analise\S-Py-Fuso_Servidor.py` mede o offset a partir
+2b. ~~Fuso do servidor~~ — **MEDIDO em 2026-08-20**, `analise\S-Ref-Fusos.csv`.
+   Export de XAUUSDm da conta 277812882 @ `Exness-MT5Trial5`, 63.224.064 ticks,
+   2026-01-01 a 2026-08-17, 32 fronteiras semanais.
+   **Servidor = UTC+0, FIXO, sem horario de verao.** Offset +0 em 30 das 32
+   semanas; residuo -3 min; maior desvio ao inteiro 2 min. Os cinco calendarios
+   candidatos foram **EXCLUIDOS**: todos viram dentro da janela (EUA 08/03,
+   Europa 29/03, Sydney/Auckland 05/04) e o offset nao saltou em nenhuma delas.
+   **O cabecalho do EA de medicao afirma "GMT+2/+3 com horario de verao" e isso
+   esta' ERRADO para este servidor.** Consequencia: `InpSrvAsia=0` erra ~9h
+   (00:00 JST = 15:00 UTC do dia anterior), `InpSrvLon=8` erra 1h no verao
+   britanico e `InpSrvNY=15` erra 0,5-2h conforme o DST americano. E' razao
+   INDEPENDENTE da armadilha 17c para a remedicao da fila 5c: os `cal_*` nao
+   foram so' mal codificados, estavam ancorados em relogio errado.
+   **Achado de dado, de quebra:** 2026-06-19 e 2026-07-03 fecham 4h cedo
+   (16:59 em vez de 20:57, lacuna 53h contra 49h) — feed truncado, nao relogio.
+   Julho carrega 53% dos trades da referencia e tem uma sexta incompleta.
+2b-old. **Fuso do servidor.** `analise\S-Py-Fuso_Servidor.py` mede o offset a partir
    do export, por ancora de mundo real (fronteira semanal), e devolve TABELA DE
    PERIODOS, nao um numero — o offset muda dentro da janela porque o DST europeu
    e o americano nao viram no mesmo dia. **Validado em controle de resposta
