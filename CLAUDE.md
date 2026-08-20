@@ -667,6 +667,15 @@ nao mais o proximo experimento interessante.
    absoluto (descartado -455 contra -491, IC95 cruzando zero nos dois) e e' MENOS
    estavel entre meses (CV 18,0% contra 9,8%); percentil movel ainda nao medido.
    O ganho da forma relativa e' **portabilidade**, nao selecao.
+2b. **Fuso do servidor.** `analise\S-Py-Fuso_Servidor.py` mede o offset a partir
+   do export, por ancora de mundo real (fronteira semanal), e devolve TABELA DE
+   PERIODOS, nao um numero — o offset muda dentro da janela porque o DST europeu
+   e o americano nao viram no mesmo dia. **Validado em controle de resposta
+   conhecida** (dado Dukascopy, UTC): devolveu +0 nas 4 semanas, residuo -1 min,
+   desvio 0,0 min. **Falta rodar no que importa** — export MT5 de XAUUSDm, que
+   exige a GUI. Ate' la', `InpSrvAsia=0 / InpSrvLon=8 / InpSrvNY=15` do EA de
+   medicao seguem sendo tres constantes NAO MEDIDAS, e `cal_lon` (um dos cinco
+   que passaram na triagem de sensores) pode estar medindo a janela errada.
 3. **Comissao.** Nunca foi medida. Zero e' suposicao. Numa Raw/Zero ela e' o custo
    dominante e entra direto no degrau do BE.
 3b. **Re-medir o valor do filtro de spread** (5.3). Na janela valida ele nao tem
