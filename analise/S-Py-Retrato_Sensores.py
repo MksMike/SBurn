@@ -95,10 +95,21 @@ def assimetria(df, h, em_atr=True):
 DIRECIONAIS = ["st_local", "st_regime", "est_micro", "est_macro",
                "sp_trend", "sp_trend_tf"]
 
+# Sensores CICLICOS: valem (minutos_do_dia - abertura) mod 1440. Cortar pela
+# mediana uma variavel que envolve nao mede nada - o resultado depende de onde
+# o corte cai numa funcao que OSCILA. Medido em 2026-08-20: a assimetria por
+# hora do servidor troca de sinal QUATRO vezes ao longo do dia (+0,23 / +0,54 /
+# -0,32 / -0,29 / +0,43 / +0,61 / -0,08 / -0,51 em blocos de 3h), e deslocar a
+# referencia de `cal_lon` em -1h INVERTE o sinal do efeito. Nao ha' corte
+# unico honesto: exige analise por faixa horaria, nao mediana.
+CICLICOS = ["cal_dia", "cal_asia", "cal_lon", "cal_ny"]
+
 
 def divide(s, dirs=None):
     """Separa em (mascara_favoravel, rotulo). Direcional -> concorda com dir;
     booleano/categorico -> por valor; continuo -> pela mediana."""
+    if s.name in CICLICOS:
+        return None
     if dirs is not None and s.name in DIRECIONAIS:
         m = (s == dirs)
         return m, "%s CONCORDA com a direcao do sinal" % s.name
@@ -152,7 +163,11 @@ def main():
                 continue
             d = divide(df[c], df["dir"])
             if d is None:
-                print("  %-14s constante - nao separa" % c)
+                if c in CICLICOS:
+                    print("  %-14s CICLICO - corte pela mediana nao mede nada;"
+                          " ver armadilha 17c" % c)
+                else:
+                    print("  %-14s constante - nao separa" % c)
                 continue
             masc, rotulo = d
             a, b = df[masc], df[~masc]

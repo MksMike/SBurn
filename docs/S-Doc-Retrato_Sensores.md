@@ -1,5 +1,5 @@
 # SBurn — Primeiro retrato das familias de sensores
-**Versao:** 1.0 | **Atualizado:** 2026-08-19
+**Versao:** 2.0 | **Atualizado:** 2026-08-20
 
 Fecha o item da fila *"analisar os seis sensores ja' gravados"*, aberto desde
 antes de 2026-08-17. **Isto e' triagem exploratoria, nao achado.** Nada aqui
@@ -81,7 +81,43 @@ Assimetria de todos os sinais: +0,054 ATR (5 barras), +0,051 (15), +0,002 (30).
 | vol | **`vol_eff` > mediana** (Efficiency Ratio) | **+0,367 ATR** | 5/7 |
 | estrutura M5 | `est_macro` concorda com `dir` | −0,288 ATR | 6/7 |
 | liquidez | `liq_r50` > mediana | −0,237 ATR | 5/7 |
-| calendario | `cal_lon` > mediana | −0,227 ATR | 5/7 |
+| ~~calendario~~ | ~~`cal_lon` > mediana~~ | **RETIRADO** | ver 4.1 |
+
+### 4.1 A familia calendario foi RETIRADA (2026-08-20)
+
+Teste de robustez pedido pelo Mike: deslizar a janela do `cal_lon` em ±1h.
+
+| `InpSrvLon` | dif 15b | tres horizontes | meses |
+|---|---|---|---|
+| 7 | **+0,105** | nao — **inverte o sinal** | 4/7 |
+| **8** (assumido) | −0,227 | sim | 5/7 |
+| 9 | −0,070 | sim | 4/7 |
+
+**So' passa no crivo no valor exato que estava assumido.** Mas a causa nao e' o
+fuso — e' o metodo. `cal_lon` vale `(minutos_do_dia − 480) mod 1440`: e'
+**ciclica**. E a assimetria por hora do servidor oscila:
+
+| faixa | assim15 | | faixa | assim15 |
+|---|---|---|---|---|
+| 00-03h | +0,226 | | 12-15h | +0,431 |
+| 03-06h | +0,540 | | 15-18h | +0,610 |
+| 06-09h | −0,321 | | 18-21h | −0,082 |
+| 09-12h | −0,286 | | 21-24h | −0,505 |
+
+Troca de sinal **quatro vezes**. Cortar isso num ponto so' da' um numero que
+depende inteiramente de onde o corte cai. `cal_asia` e `cal_ny` tem a mesma
+construcao e caem junto. Registrado como armadilha 17c; o script agora **recusa**
+cortar variavel ciclica pela mediana.
+
+O que sobra da familia: nada, por enquanto. Ha' estrutura horaria visivel na
+tabela acima, mas medi-la exige analise por faixa, com criterio pre-registrado —
+nao mediana. E o fuso continua nao medido, entao ate' as faixas estao rotuladas
+com hora do servidor de origem desconhecida (fila 2b).
+
+**As outras quatro nao sao afetadas:** `vol_std`/`vol_eff` sao continuas,
+`est_macro` e' concordancia, `liq_r50` e' distancia limitada. Nenhuma envolve.
+
+---
 
 Sinal negativo nao e' inutil: um sensor que separa ao contrario e' usavel
 invertido. Mas ai' vale o **teste do descartado** — o valor esta' no desempenho

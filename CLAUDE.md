@@ -620,6 +620,16 @@ osciladores primos (MACD/RSI/TrendWave) · USDJPY (assimetria -0,251 ATR).
     consistencia. **Reportar assimetria sempre em ATR.** Corolario que me pegou:
     o custo de 260 pts vale **0,048 ATR** — um crivo "acima do custo" escrito em
     pontos parece exigente e em ATR nao filtra quase nada (lei 4).
+17c. **Corte pela MEDIANA em variavel CICLICA nao mede nada.** `cal_asia`,
+    `cal_lon` e `cal_ny` valem `(minutos_do_dia - abertura) mod 1440`. A
+    assimetria por hora do servidor **oscila e troca de sinal quatro vezes** ao
+    longo do dia (+0,23 / +0,54 / -0,32 / -0,29 / +0,43 / +0,61 / -0,08 / -0,51
+    em blocos de 3h): cortar isso num ponto so' da' um resultado que depende
+    inteiramente de ONDE o corte cai. Medido em 2026-08-20 deslizando a
+    referencia de `cal_lon`: em `InpSrvLon=7` o efeito **INVERTE** (+0,105
+    contra -0,227); em 9 cai a um terco. So' passava no crivo no valor exato que
+    estava assumido. **A familia calendario saiu da triagem** — nao por causa do
+    fuso, por causa do metodo. Variavel ciclica exige analise por faixa horaria.
 18. **Falha ao armar o breakeven nao entra em NENHUM contador.** A linha de resumo
     reporta `sinal/contexto/abrir/fechar`; BE nao esta' la'. `g_tentBE` e' por
     posicao e o `Print` so' sai na 1a tentativa. Pior: apos `InpMaxTentBE` falhas
@@ -709,10 +719,12 @@ nao mais o proximo experimento interessante.
    `docs\S-Doc-Retrato_Sensores.md`. O CSV de 712 sinais que se citava era inutil
    duas vezes: janeiro inteiro E `SIG_TMO1` (hipotese morta). Coleta refeita com
    `SIG_SP` na janela valida: **568 sinais, 7 meses, distribuicao uniforme**.
-   Sobreviveram ao crivo: `vol_std` (+0,606 ATR, 6/7 meses) e `vol_eff`
-   (Efficiency Ratio, +0,367, 5/7) na mesma direcao, mais tres com sinal
-   invertido. **E' peneira, nao achado** — ~20 sensores testados, sem correcao
-   para comparacoes multiplas. Proximo passo e' pre-registrar UMA hipotese.
+   Sobreviveram ao crivo: `vol_std` (+0,606 ATR, 6/7 meses), `vol_eff`
+   (Efficiency Ratio, +0,367, 5/7), `est_macro` (-0,288, 6/7) e `liq_r50`
+   (-0,237, 5/7). **A familia calendario foi RETIRADA** em 2026-08-20 — corte
+   pela mediana em variavel ciclica, armadilha 17c. **E' peneira, nao achado**:
+   ~20 sensores testados, sem correcao para comparacoes multiplas. Proximo passo
+   e' pre-registrar UMA hipotese.
 6. **Estrutura de mercado** (`est_micro`/`est_macro`/`est_acordo`, ja' gravadas) —
    medir cada componente ISOLADO. Voto ponderado so' depois: peso e' parametro, e
    parametro sem medicao viola a R1.
