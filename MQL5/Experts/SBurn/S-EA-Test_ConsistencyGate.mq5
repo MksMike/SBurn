@@ -336,7 +336,7 @@
 //| CSV (FILE_COMMON): <root>\test_consistgate_<simbolo>_<per>_<data>|
 //+------------------------------------------------------------------+
 #property copyright "MKS-Engine"
-#property version   "1.29"
+#property version   "1.30"
 // A assinatura de runtime deriva DESTE define. Ao subir a versao,
 // mudar as duas linhas juntas — sao vizinhas de proposito.
 #define  S_VER "1.28"
@@ -489,6 +489,10 @@ double   g_beArm[3], g_beLvl[3];   // grade da escada de degrau fixo [v1.16]
 double   g_ctTgt[4], g_ctStop[3];  // grade do contra-trade [v1.18]
 double   g_pirPasso[2];            // grade da piramide [v1.21]
 #define  TR_NAO_SAIU -999999.0
+
+//--- [v1.30] grade de piso proporcional, PRE-REGISTRADA. Nao alterar depois de
+//    ver numero (regra anti-pesca da varredura). f=0 e' o titular: controle.
+const double PISO_F[4] = {0.00, 0.25, 0.50, 0.75};
 string   g_csvPath;
 
 //--- registro por sinal
@@ -589,6 +593,21 @@ struct GateRec
    bool     titEmpate;        // stop e BE elegiveis no MESMO tick?
    datetime titTBe;           // instante em que o BE armou   (0 = nunca)
    datetime titTStop;         // instante em que o stop bateu (0 = nunca)
+   // ===== [v1.30] MOTOR DE SAIDA: recuo relativo e varredura de piso =====
+   // M(t) e rec(t) medidos SO' enquanto o ciclo titular esta' aberto - o favA
+   // do rec continua vivo depois da saida e mediria outra coisa.
+   double   titMfe;           // M(t): excursao favoravel maxima do CICLO, pts
+   int      titMfeBarras;     // barra em que o maximo FINAL ocorreu
+   double   titRecRun;        // rec(t) maximo corrente (interno)
+   double   titRecMaxPre;     // maior rec(t) ANTES do maximo final
+   // varredura de piso: piso = max(0, f x M(t)), armado no MESMO gatilho do BE
+   // titular. f=0 reproduz o titular por construcao - e' o controle e o portao.
+   double   pisoSl[4];        // preco ABSOLUTO do SL de cada f
+   double   pisoNivel[4];     // nivel de EXCURSAO do piso, em pontos (catraca)
+   bool     pisoArm[4];
+   bool     pisoFechado[4];
+   int      pisoMotivo[4];    // 0=ABERTO 1=STOP 2=PISO 3=SINAL
+   double   pisoPnl[4];       // sempre valido (marcado a mercado enquanto aberto)
    // caminho do preco [v1.14]
    double   maePre;           // adverso maximo ANTES do pico favoravel
    double   mfePre;           // favoravel maximo ANTES do fundo adverso
@@ -744,7 +763,15 @@ int OnInit()
       // em que o BE armou e em que o stop bateu, VAZIOS se nao aconteceram:
       // gravados separados para a ORDEM dos eventos ser reconstruivel sem
       // re-rodar, que e' o que MFE/MAE nunca deram.
-      "tit_pnl;tit_saiu;tit_motivo;tit_barras;tit_empate;tit_be_seg;tit_stop_seg\n");
+      "tit_pnl;tit_saiu;tit_motivo;tit_barras;tit_empate;tit_be_seg;tit_stop_seg;"
+      // [v1.30] MOTOR DE SAIDA. mfe_final/mfe_barras/barras_pos_mfe medem
+      // o CICLO TITULAR (entrada ate a saida), nao a vida do rec.
+      // rec_max_pre = maior recuo relativo (M-E)/M ocorrido ANTES do
+      // maximo final. Piso proporcional: max(0, f x M(t)), armado no mesmo
+      // gatilho do BE titular. piso_f0 REPRODUZ tit_pnl por construcao -
+      // e o controle e o portao de consistencia da implementacao.
+      "mfe_final;mfe_barras;barras_pos_mfe;rec_max_pre;"
+      "piso_f0;piso_f0_mot;piso_f25;piso_f25_mot;piso_f50;piso_f50_mot;piso_f75;piso_f75_mot\n");
 
    ArrayResize(g_recs, 0, 64);
    ArrayResize(g_mfe15B_pass, 0, 1024);
@@ -1101,6 +1128,19 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
                          + g_recs[li].titSpreadEnt * g_point)) / g_point
             : (g_recs[li].priceA - askNow) / g_point;
       }
+      //--- [v1.30] o mesmo sinal fecha os pisos que ainda estiverem abertos
+      for(int pf = 0; pf < 4; pf++)
+         if(!g_recs[g_lastRec].pisoFechado[pf])
+         {
+            int li2 = g_lastRec;
+            double askN = bidNow + SpreadPts() * g_point;
+            g_recs[li2].pisoFechado[pf] = true;
+            g_recs[li2].pisoMotivo[pf]  = 3;                    // SINAL
+            g_recs[li2].pisoPnl[pf] = (g_recs[li2].dir > 0)
+               ? (bidNow - (g_recs[li2].priceA
+                            + g_recs[li2].titSpreadEnt * g_point)) / g_point
+               : (g_recs[li2].priceA - askN) / g_point;
+         }
    }
 
    //--- novo registro
@@ -1190,6 +1230,18 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
    rec.titArmado = false; rec.titFechado = false; rec.titMotivo = 0;
    rec.titPnlPts = 0.0; rec.titBarras = 0; rec.titEmpate = false;
    rec.titTBe = 0; rec.titTStop = 0;
+   // [v1.30] motor de saida
+   rec.titMfe = 0.0; rec.titMfeBarras = 0;
+   rec.titRecRun = 0.0; rec.titRecMaxPre = 0.0;
+   for(int pf = 0; pf < 4; pf++)
+   {
+      rec.pisoSl[pf]      = rec.titSlPreco;   // mesmo stop inicial do titular
+      rec.pisoNivel[pf]   = -1e18;            // ainda sem piso
+      rec.pisoArm[pf]     = false;
+      rec.pisoFechado[pf] = false;
+      rec.pisoMotivo[pf]  = 0;
+      rec.pisoPnl[pf]     = 0.0;
+   }
    // [v1.16] escada em pontos, congelada com o ATR da entrada (atrEnt ja' lido)
    double atrOk = (rec.atrEnt > 0.0) ? rec.atrEnt : 1.0;
    for(int aa = 0; aa < 3; aa++)
@@ -1310,6 +1362,19 @@ void WriteRec(const GateRec &r)
            ";" + IntegerToString(r.titEmpate ? 1 : 0) +
            ";" + ((r.titTBe   > 0) ? IntegerToString((int)(r.titTBe   - r.tSig)) : "") +
            ";" + ((r.titTStop > 0) ? IntegerToString((int)(r.titTStop - r.tSig)) : "");
+
+   //--- [v1.30] motor de saida
+   line += ";" + DoubleToString(r.titMfe, 1) +
+           ";" + IntegerToString(r.titMfeBarras) +
+           ";" + IntegerToString(r.titBarras - r.titMfeBarras) +
+           ";" + DoubleToString(r.titRecMaxPre, 4);
+   for(int pf = 0; pf < 4; pf++)
+   {
+      string pm = (r.pisoMotivo[pf] == 1) ? "STOP" :
+                  (r.pisoMotivo[pf] == 2) ? "PISO" :
+                  (r.pisoMotivo[pf] == 3) ? "SINAL" : "ABERTO";
+      line += ";" + DoubleToString(r.pisoPnl[pf], 1) + ";" + pm;
+   }
 
    FileWriteString(g_csv, line + "\n");
    g_written++;
@@ -1455,6 +1520,77 @@ void OnTick()
          rec.advA   = -exc;
          rec.mfePre = rec.favA;
          rec.tMae   = (int)((now - rec.tBar0) / g_ps);
+      }
+
+      // ============ [v1.30] MOTOR DE SAIDA: M(t), rec(t) e pisos ==========
+      // Roda ANTES do bloco titular para que M(t) do tick corrente ja' esteja
+      // disponivel, e so' enquanto o ciclo titular esta' aberto.
+      if(!rec.titFechado && rec.atrEnt > 0.0)
+      {
+         double excT = (bid - rec.priceA) / g_point * rec.dir;
+         if(excT > rec.titMfe)
+         {
+            // maximo NOVO: tudo que recuou antes dele fica "antes do maximo".
+            // Guardar aqui e' o que torna rec_max_pre calculavel em O(1) sem
+            // conhecer o maximo final de antemao.
+            rec.titRecMaxPre = rec.titRecRun;
+            rec.titMfe       = excT;
+            rec.titMfeBarras = (int)((now - rec.tBar0) / g_ps);
+         }
+         else if(rec.titMfe >= InpTitArmATR * rec.atrEnt)
+         {
+            // SO' apos o piso ARMAR. Antes disso nao existe piso para cortar
+            // nada, e com M(t) perto de zero qualquer mergulho abaixo da
+            // entrada faz (M-E)/M explodir: medido em 2026-08-21, rec_max_pre
+            // saia com p50=4,3 e p90=18,3 e P(rec>f)=98-100% para todo f, o
+            // que nao decide nada. O recuo so' e' pergunta depois que ha' piso.
+            double r = (rec.titMfe - excT) / rec.titMfe;
+            if(r > rec.titRecRun) rec.titRecRun = r;
+         }
+
+         double armP = InpTitArmATR * rec.atrEnt;
+         for(int pf = 0; pf < 4; pf++)
+         {
+            if(rec.pisoFechado[pf]) continue;
+            bool bt = (rec.pisoSl[pf] != 0.0) &&
+                      ((rec.dir > 0) ? (bid <= rec.pisoSl[pf])
+                                     : (tk.ask >= rec.pisoSl[pf]));
+            if(bt)
+            {
+               rec.pisoFechado[pf] = true;
+               rec.pisoMotivo[pf]  = rec.pisoArm[pf] ? 2 : 1;   // PISO : STOP
+               rec.pisoPnl[pf] = (rec.dir > 0)
+                  ? (rec.pisoSl[pf] - (rec.priceA + rec.titSpreadEnt * g_point)) / g_point
+                  : (rec.priceA - rec.pisoSl[pf]) / g_point;
+               continue;
+            }
+            //--- arma no MESMO gatilho do BE titular, e depois acompanha M(t)
+            if(rec.titMfe >= armP)
+            {
+               // piso = max(0, f x M) em EXCURSAO. Nunca abaixo do BE no zero:
+               // o piso e' estritamente um aperto acima de zero, e o titular
+               // continua sendo o caso f=0.
+               double e = PISO_F[pf] * rec.titMfe;
+               if(e < 0.0) e = 0.0;
+               // A CATRACA E' SOBRE A EXCURSAO, nunca sobre o preco. O EA real
+               // chama PositionModify UMA VEZ por atualizacao e o SL fica
+               // parado no broker com o spread daquele instante. Catraca sobre
+               // o preco escolheria o menor spread ja' visto - otimismo
+               // silencioso, e foi o bug que o portao f=0 pegou em 2026-08-21
+               // (121 vendas, todas com a perda de BE virando exatamente um
+               // spread em vez do spread do instante do armamento).
+               if(!rec.pisoArm[pf] || e > rec.pisoNivel[pf])
+               {
+                  rec.pisoArm[pf]   = true;
+                  rec.pisoNivel[pf] = e;
+                  double nb = rec.priceA + rec.dir * e * g_point;
+                  rec.pisoSl[pf] = (rec.dir > 0) ? nb : nb + (tk.ask - bid);
+               }
+            }
+            rec.pisoPnl[pf] = (rec.dir > 0)
+               ? (bid - (rec.priceA + rec.titSpreadEnt * g_point)) / g_point
+               : (rec.priceA - tk.ask) / g_point;
+         }
       }
 
       // ============== [v1.29] DESFECHO TITULAR (tick a tick) =============

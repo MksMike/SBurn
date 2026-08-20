@@ -468,7 +468,8 @@ TMO-cruzamento como gatilho (assimetria ~0 em 5 TFs) · SAR cruzamento-a-cruzame
 (-2,34M pts em 8 meses) · MovConsistency como filtro de entrada (rho +0,042) ·
 SP trendDir como regime para o TMO (OOS -154 / IS -306) · prove-it barra 5 ·
 barra-1 como regra (-$422/trade; o calculo ingenuo dava +2.880 — vies de selecao) ·
-TP por quantil e parcial · trailing (4 distancias + modulacao ATR; familia dominada) ·
+piso PROPORCIONAL max(0, f x M(t)) (lei 2 estendida; f=0 vence, perda cresce
+com f) · TP por quantil e parcial · trailing (4 distancias + modulacao ATR; familia dominada) ·
 degrau de BE acima de zero (+0,05xATR custa 1.700 pts/trade) · folga de BE abaixo de
 zero (grade 4x5: o zero e' o maximo) · contra-trade pos-breakeven (0 de 12
 combinacoes) · MACROSS/cruzamento PAC x EMAs (-2.972/trade, 8/8 meses negativos) ·
@@ -485,7 +486,16 @@ que o projeto ja' mediu como negativa) · osciladores primos (MACD/RSI/TrendWave
 ### 5.5 Leis empiricas
 
 1. **Evento de mudanca nao tem direcao; ESTADO tem.** Cinco confirmacoes.
-2. **Proteger ajuda; limitar destroi.** BE no zero e' otimo global: degrau acima poda
+2. **Proteger ajuda; limitar destroi.** **Estendida em 2026-08-21: vale tambem
+   para piso PROPORCIONAL, nao so' para degrau fixo.** Grade pre-registrada
+   `piso = max(0, f x M(t))` armada no gatilho titular, f = 0 / 0,25 / 0,50 /
+   0,75, comparacao PAREADA por sinal: total 146,43 / 40,53 / 32,00 / 25,12 ATR.
+   Monotonico, os tres IC95 abaixo de zero, e o piso mais suave ja' destroi 72%
+   do retorno. Causa medida (item 1 da frente): nas pernas > 3 ATR o recuo
+   mediano ANTES do maximo final e' **78,8%**, e **100% delas recuam mais de
+   25%** — perna grande e' feita de varios impulsos com pullback entre eles, e
+   e' exatamente isso que o piso corta. Em `f=0,75`, 72 de 84 ciclos morrem no
+   piso. BE no zero e' otimo global: degrau acima poda
    a cauda, folga abaixo aumenta a perda. 10% dos ciclos somam +15,4M pts; os outros
    90% somam -16,1M.
 3. **Filtro e' bom ou ruim PARA UM EVENTO**, nunca em abstrato.
