@@ -313,10 +313,8 @@ def main():
             "inputs": inputs,
         }
         # newline="" e' obrigatorio: em modo texto no Windows o Python
-        # converte 
- em 
- e o arquivo sai em CRLF, quebrando a
-        # invariante `* -text` do repositorio.
+        # converte a quebra de linha e o arquivo sai em CRLF, quebrando a
+        # invariante `* -text` do repositorio (ver S-Doc-Maquinas.md).
         io.open(a.gravar, "w", encoding="utf-8", newline="").write(
             json.dumps(novo, indent=2, ensure_ascii=False) + "\n")
         print("")
