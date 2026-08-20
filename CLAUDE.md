@@ -792,7 +792,26 @@ nao mais o proximo experimento interessante.
    2026-08-20 (armadilha 17c), nao como reprovada — ver 5c. **E' peneira, nao achado**:
    ~20 sensores testados, sem correcao para comparacoes multiplas. Proximo passo
    e' pre-registrar UMA hipotese.
-5c. **Remedir a familia calendario com codificacao adequada.** NAO esta'
+5c. **Familia calendario — BLOQUEADA, pre-registro escrito em 2026-08-20**
+   (`docs\S-Doc-PreReg_Calendario.md`). NAO enterrada e NAO rodada: a Etapa 0
+   declarou o teste inviavel antes de ele existir. Dois bloqueios independentes.
+   **(a) Ancora nao passa.** Convencao de mercado contra perfil de intensidade
+   de ticks (63,2M): NY sustentada (20/10 min), **Londres NAO VERIFICAVEL** (o
+   perfil de 05:00-10:00 UTC e' plano nas duas estacoes — nao ha' degrau de
+   abertura), **Toquio DISCORDA** por 60 min (pico real em 01:00 UTC, estavel
+   entre estacoes; coincide com a abertura da Shanghai Gold Exchange, que
+   tambem nao tem DST — registrada como candidata, NAO adotada, porque trocar
+   convencao depois de ver o dado e' escolher a que agrada).
+   **(b) Poder inexistente.** Omnibus por permutacao, poder medido sobre nulo
+   sintetico (controle em delta=0 da' 6%, calibrado): **2-4% nos efeitos de
+   referencia de 0,2-0,3 ATR**, 27% em 0,8 ATR. E nao e' tamanho de amostra —
+   **nem 8,7 anos de coleta (n=9.088) chegam a 80%**: `MFE15/ATR` tem ~2,8 ATR
+   entre quartis contra efeito de ~0,3.
+   **Desbloqueia SO' com:** desfecho LIMITADO com a regra de saida titular (BE
+   no zero, stop 3,67xATR) instrumentado como coluna. `tr_1` esta' fora
+   (familia morta) e a escada `be_a*` nao tem degrau zero. **Nao desbloqueia**
+   trocar particao, horizonte ou ancora ate' o numero fechar.
+5c-old. ~~Remedir a familia calendario com codificacao adequada.~~ NAO esta'
    enterrada: o teste de 2026-08-20 foi invalido, nao negativo (armadilha 17c).
    **Pre-registro, CORRIGIDO em 2026-08-20:** blocos cujas fronteiras sao
    **FRONTEIRAS DE SESSAO MEDIDAS** (Toquio, Londres, Nova York, pelo fuso que o
