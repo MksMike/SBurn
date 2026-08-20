@@ -672,6 +672,18 @@ def main():
     linha('    feriado longo pode mascarar uma transicao real vizinha.')
     linha('  - Este script CALIBRA, nao decide. O offset entra na analise como')
     linha('    coluna por barra; nenhum limiar de sessao vira default aqui.')
+    linha('  - **ESCOPO: este script mede o relogio do ARQUIVO, nao o do EA.**')
+    linha('    Se o exportador normalizar o timestamp na gravacao, o resultado')
+    linha('    NAO descreve o relogio que o EA le em TimeCurrent(). Isso e' + "'")
+    linha('    limitacao de escopo, nao defeito. Para amarrar os dois e' + "'"
+          + ' preciso')
+    linha('    evidencia independente — perfil horario do CSV do EA contra o do')
+    linha('    arquivo, ou um EA de diagnostico imprimindo TimeCurrent().')
+    linha('  - Feriado com fechamento antecipado NAO e' + "'" + ' falha de dado.')
+    linha('    Medido em 2026-08-20: 2026-06-19 (Juneteenth) e 2026-07-03 (4 de')
+    linha('    julho observado) fecham 16:59 = 13:00 ET, que e' + "'" + ' o fechamento')
+    linha('    antecipado da CME. Antes de chamar de truncamento, conferir a')
+    linha('    data contra o calendario de feriados.')
     linha('  - Perfil reconstruido (armadilha 13) NAO e' + "'" +
           ' detectado por este')
     linha('    teste: fuso correto e caminho de bid fabricado convivem. Rodar')

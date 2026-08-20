@@ -701,14 +701,35 @@ nao mais o proximo experimento interessante.
    candidatos foram **EXCLUIDOS**: todos viram dentro da janela (EUA 08/03,
    Europa 29/03, Sydney/Auckland 05/04) e o offset nao saltou em nenhuma delas.
    **O cabecalho do EA de medicao afirma "GMT+2/+3 com horario de verao" e isso
-   esta' ERRADO para este servidor.** Consequencia: `InpSrvAsia=0` erra ~9h
-   (00:00 JST = 15:00 UTC do dia anterior), `InpSrvLon=8` erra 1h no verao
-   britanico e `InpSrvNY=15` erra 0,5-2h conforme o DST americano. E' razao
-   INDEPENDENTE da armadilha 17c para a remedicao da fila 5c: os `cal_*` nao
-   foram so' mal codificados, estavam ancorados em relogio errado.
-   **Achado de dado, de quebra:** 2026-06-19 e 2026-07-03 fecham 4h cedo
-   (16:59 em vez de 20:57, lacuna 53h contra 49h) — feed truncado, nao relogio.
-   Julho carrega 53% dos trades da referencia e tem uma sexta incompleta.
+   esta' ERRADO para este servidor.**
+
+   | input | assume | real (UTC) | erro | status |
+   |---|---|---|---|---|
+   | `InpSrvAsia=0` | abertura de Toquio | 00:00 JST = **15:00 UTC** do dia anterior | ~9h | **ERRO CONFIRMADO** — independe do fuso: 00:00 nao e' abertura de Toquio em fuso plausivel NENHUM (nem em GMT+3, onde daria 18:00) |
+   | `InpSrvLon=8` | abertura de Londres | 08:00 inverno / 07:00 verao britanico | 0-1h | erro sazonal |
+   | `InpSrvNY=15` | abertura de NY | 13:00-14:30 conforme DST | 0,5-2h | erro |
+
+   E' razao INDEPENDENTE da armadilha 17c para a remedicao da fila 5c: os
+   `cal_*` nao foram so' mal codificados (variavel ciclica cortada pela
+   mediana), estavam ancorados em relogio errado. Duas causas distintas.
+   **CORRECAO de 2026-08-20 (eu tinha errado):** 2026-06-19 e 2026-07-03 fecham
+   16:59, e eu chamei de "feed truncado". **Nao e'. E' AGENDA:** 19/06 e'
+   Juneteenth e 03/07 e' o 4 de julho observado (o feriado cai no sabado). Os
+   dois fecham 16:59 = **13:00 ET**, que e' o fechamento antecipado da CME. Sao
+   as unicas 2 de 33 fronteiras fora do modo, e a atipica de 02/04 (quinta,
+   lacuna 73h) e' Sexta-feira Santa. **Nao ha' sexta incompleta em julho** —
+   retiro a ressalva do mes. De quebra, isto e' uma TERCEIRA confirmacao
+   independente de UTC: os fechamentos de feriado so' caem em 13:00 ET se o
+   arquivo estiver em UTC.
+
+   **O relogio do EA e' o mesmo do arquivo (cenario (a)), medido.** O script
+   mede o relogio do ARQUIVO; se o exportador normalizasse, a conclusao nao
+   valeria para o `TimeCurrent()` do EA. Tres evidencias amarram os dois:
+   (i) a **hora morta e' 21h nos dois** — a parada diaria dos metais e' 17:00 ET
+   = 21:00 UTC no verao americano, e o EA poe seu vazio de sinais em 21h;
+   (ii) correlacao cruzada dos perfis horarios exclui deslocamento de +2h
+   (-0,49) e +3h (-0,57); (iii) os fechamentos de feriado acima. Se o EA lesse
+   GMT+3, o vazio diario apareceria em 00h-01h.
 2b-old. **Fuso do servidor.** `analise\S-Py-Fuso_Servidor.py` mede o offset a partir
    do export, por ancora de mundo real (fronteira semanal), e devolve TABELA DE
    PERIODOS, nao um numero — o offset muda dentro da janela porque o DST europeu
