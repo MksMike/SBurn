@@ -395,6 +395,31 @@ outro recorte da mesma janela.
 > do tipo "condicao de mercado, nao custo" se apoia em contraste ENTRE MESES com
 > ~6 unidades independentes. Continua plausivel; o suporte e' muito menor do que
 > 568 sinais sugerem.
+>
+> **RESOLVIDO EM 2026-08-20 - o filtro TEM valor de selecao.** As ressalvas
+> acima continuam valendo para o *achado dos 99%*, mas a duvida sobre o FILTRO
+> esta' respondida. O p=0,431 foi medido com **assimetria30**, que tem IQR de
+> **4,37 ATR** contra um efeito da ordem de 0,05: era falta de poder, como a
+> propria nota suspeitava. Refeito com o desfecho titular `tit_pnl` (IQR 0,06
+> ATR), diferenca de medianas rejeitado-aceito, bootstrap por dia:
+>
+> | teste | diferenca | IC95 |
+> |---|---|---|
+> | abr+mai rejeitados x aceitos de outros meses (confundido) | -0,0214 ATR | [-0,0391, -0,0068] |
+> | **fev+jun, DENTRO do mes (limpo quanto a mes)** | **-0,0273 ATR** | **[-0,0478, -0,0106]** |
+> | todos os meses | -0,0161 ATR | [-0,0285, -0,0014] |
+>
+> **Os tres IC inteiramente abaixo de zero, e o teste limpo de mes concorda com
+> o confundido** - o confundimento nao dirige o resultado. Os descartados sao
+> PIORES, nao "marginalmente melhores". Magnitude: 1/3 a 1/2 de um spread por
+> sinal (custo = 0,0482 ATR); ganhadores 18% contra 26%. A configuracao de
+> referencia fica **reabilitada** neste ponto.
+>
+> **O que NAO ficou resolvido:** o contrafactual de operar abril+maio soma
+> **-26.271 pts (-$26,27), IC95 [-$183, +$137]** - cruza zero. A reducao de IQR
+> do `tit_pnl` da' poder a testes de MEDIANA, nao de SOMA: a soma e' dominada
+> pela cauda (3 trades = **68%** do total dos aceitos). Com 61 sinais e essa
+> estrutura, o total nao e' decidivel, e isso e' propriedade do dado.
 
 ### 5.4 Hipoteses MORTAS (nao re-testar)
 
@@ -749,7 +774,7 @@ nao mais o proximo experimento interessante.
    que passaram na triagem de sensores) pode estar medindo a janela errada.
 3. **Comissao.** Nunca foi medida. Zero e' suposicao. Numa Raw/Zero ela e' o custo
    dominante e entra direto no degrau do BE.
-3a-bis. **Filtro de spread — estado em 2026-08-20.** Teste do descartado:
+3a-bis. ~~Filtro de spread~~ - **FRENTE ENCERRADA em 2026-08-20 COM EVIDENCIA.** O teste do descartado refeito com `tit_pnl` mostra os rejeitados PIORES em tres recortes, IC95 todo abaixo de zero (caixa na 5.3). A leitura (b) "a regua estava presa" fica DESCARTADA: regua presa produziria descartados NORMAIS, nao piores. Desligar o filtro em meses de spread alto adicionaria sinais sistematicamente piores. O contrafactual em SOMA e inconclusivo (-$26, IC [-$183, +$137]) e seguira sendo - a cauda domina e isso nao se conserta com instrumento. Estado anterior abaixo, mantido como historico:
    **INCONCLUSIVO**, nao favoravel. IC95 [-453, +381] pts contra custo de 260
    (3,2x o custo de largura) no teste confundido por mes, e SEM PODER no teste
    limpo. A frente segue **por ausencia de evidencia contraria, nao por
