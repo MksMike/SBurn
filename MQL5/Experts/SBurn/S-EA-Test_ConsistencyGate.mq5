@@ -336,7 +336,7 @@
 //| CSV (FILE_COMMON): <root>\test_consistgate_<simbolo>_<per>_<data>|
 //+------------------------------------------------------------------+
 #property copyright "MKS-Engine"
-#property version   "1.28"
+#property version   "1.29"
 // A assinatura de runtime deriva DESTE define. Ao subir a versao,
 // mudar as duas linhas juntas — sao vizinhas de proposito.
 #define  S_VER "1.28"
@@ -454,6 +454,7 @@ input double             InpCtrStop3     = 2.00;  // Stop 3
 
 input group "=== Escada de degrau fixo (GRADE, multiplos de ATR) ==="
 input double             InpSimStopATR   = 3.67;  // Stop inicial, x ATR
+input double             InpTitArmATR    = 0.73;  // [v1.29] BE do desfecho TITULAR, x ATR (espelha InpArmATR)
 input double             InpBeArm1       = 0.40;  // Armar degrau em, x ATR (1)
 input double             InpBeArm2       = 0.73;  // Armar degrau em, x ATR (2)
 input double             InpBeArm3       = 1.20;  // Armar degrau em, x ATR (3)
@@ -574,6 +575,20 @@ struct GateRec
    double   trStop[4];        // nivel corrente do stop (em pontos de excursao)
    double   trOut[4];         // nivel de saida, ou TR_NAO_SAIU
    double   atrEnt;           // ATR na entrada (buffer 16 do TMO), em pontos
+   // ===== [v1.29] DESFECHO TITULAR: espelha a regra do S-EA-Pullback_Live =====
+   // stop 3,67xATR + BE no degrau ZERO ao atingir 0,73xATR + saida por sinal
+   // novo. Caminhado TICK A TICK: MFE/MAE nao dizem ORDEM, e desfecho simulado
+   // exige ordem. Ver docs\S-Doc-PreReg_Desfecho_Titular.md.
+   double   titSlPreco;       // preco ABSOLUTO do SL, com o ajuste da armadilha 9
+   double   titSpreadEnt;     // spread no tick de entrada, em pontos
+   bool     titArmado;        // BE ja' armou?
+   bool     titFechado;
+   int      titMotivo;        // 0=ABERTO 1=STOP 2=BE 3=SINAL
+   double   titPnlPts;        // P&L em pontos, SEMPRE valido (nunca sentinela)
+   int      titBarras;
+   bool     titEmpate;        // stop e BE elegiveis no MESMO tick?
+   datetime titTBe;           // instante em que o BE armou   (0 = nunca)
+   datetime titTStop;         // instante em que o stop bateu (0 = nunca)
    // caminho do preco [v1.14]
    double   maePre;           // adverso maximo ANTES do pico favoravel
    double   mfePre;           // favoravel maximo ANTES do fundo adverso
@@ -721,7 +736,15 @@ int OnInit()
       "ct_1;ct_2;ct_3;ct_4;ct_5;ct_6;ct_7;ct_8;ct_9;ct_10;ct_11;ct_12;"
       "pir_a0;pir_a1;pir_a2;pir_a3;pir_a4;pir_b0;pir_b1;pir_b2;pir_b3;pir_b4;"
       "re_atr;re_tmo_main;re_tmo_hist;re_tmo_est;re_pior;re_calma;"
-      "re_g1;re_o1;re_g2;re_o2;re_g3;re_o3\n");
+      "re_g1;re_o1;re_g2;re_o2;re_g3;re_o3;"
+      // [v1.29] desfecho TITULAR. tit_pnl e' SEMPRE numerico e valido -
+      // nunca sentinela. Quem diz se o trade encerrou e' tit_saiu (1/0); com
+      // 0, tit_pnl carrega o P&L EM ABERTO no fim da janela, tambem valido.
+      // tit_be_seg / tit_stop_seg sao os INSTANTES (segundos desde a entrada)
+      // em que o BE armou e em que o stop bateu, VAZIOS se nao aconteceram:
+      // gravados separados para a ORDEM dos eventos ser reconstruivel sem
+      // re-rodar, que e' o que MFE/MAE nunca deram.
+      "tit_pnl;tit_saiu;tit_motivo;tit_barras;tit_empate;tit_be_seg;tit_stop_seg\n");
 
    ArrayResize(g_recs, 0, 64);
    ArrayResize(g_mfe15B_pass, 0, 1024);
@@ -1062,6 +1085,22 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
                                         / PeriodSeconds(PERIOD_CURRENT));
       g_recs[g_lastRec].cycMfe  = g_recs[g_lastRec].favA;
       g_recs[g_lastRec].cycMae  = g_recs[g_lastRec].advA;
+      // [v1.29] terceira saida do titular: sinal NOVO fecha a posicao. No EA
+      // operacional isso acontece ANTES de qualquer veto (linha 1284 contra
+      // 1294/1299), entao o gatilho aqui e' o sinal BRUTO — que e' exatamente
+      // o que chega neste ponto do OnSignal.
+      if(!g_recs[g_lastRec].titFechado)
+      {
+         int li = g_lastRec;
+         double askNow = bidNow + SpreadPts() * g_point;
+         g_recs[li].titFechado = true;
+         g_recs[li].titMotivo  = 3;                           // SINAL
+         g_recs[li].titBarras  = g_recs[li].cycBars;
+         g_recs[li].titPnlPts  = (g_recs[li].dir > 0)
+            ? (bidNow - (g_recs[li].priceA
+                         + g_recs[li].titSpreadEnt * g_point)) / g_point
+            : (g_recs[li].priceA - askNow) / g_point;
+      }
    }
 
    //--- novo registro
@@ -1137,6 +1176,20 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
    rec.maePre = 0.0; rec.mfePre = 0.0; rec.tMfe = 0; rec.tMae = 0;   // [v1.14]
    for(int tt = 0; tt < 4; tt++)                                     // [v1.15]
    { rec.trStop[tt] = -InpSimStop; rec.trOut[tt] = TR_NAO_SAIU; }
+   // [v1.29] desfecho titular: stop inicial em preco ABSOLUTO, ja' com o
+   // ajuste da armadilha 9 (SL de VENDA dispara no ASK, entao soma o spread).
+   // Igual ao NivelBidParaSL do EA operacional.
+   rec.titSpreadEnt = SpreadPts();
+   if(rec.atrEnt > 0.0)
+   {
+      double nivelBid = bidNow - dir * InpSimStopATR * rec.atrEnt * g_point;
+      rec.titSlPreco  = (dir > 0) ? nivelBid
+                                  : nivelBid + rec.titSpreadEnt * g_point;
+   }
+   else rec.titSlPreco = 0.0;      // sem ATR nao ha' stop: fica so' saida por sinal
+   rec.titArmado = false; rec.titFechado = false; rec.titMotivo = 0;
+   rec.titPnlPts = 0.0; rec.titBarras = 0; rec.titEmpate = false;
+   rec.titTBe = 0; rec.titTStop = 0;
    // [v1.16] escada em pontos, congelada com o ATR da entrada (atrEnt ja' lido)
    double atrOk = (rec.atrEnt > 0.0) ? rec.atrEnt : 1.0;
    for(int aa = 0; aa < 3; aa++)
@@ -1246,6 +1299,18 @@ void WriteRec(const GateRec &r)
            ";" + IntegerToString(r.reCalmaDesde);
    for(int rk = 0; rk < 3; rk++)                        // [v1.21] reentrada
       line += ";" + IntegerToString(r.reGatilho[rk]) + ";" + DoubleToString(r.reOut[rk], 1);
+   //--- [v1.29] desfecho titular
+   string mot = (r.titMotivo == 1) ? "STOP" :
+                (r.titMotivo == 2) ? "BE"   :
+                (r.titMotivo == 3) ? "SINAL" : "ABERTO";
+   line += ";" + DoubleToString(r.titPnlPts, 1) +
+           ";" + IntegerToString(r.titFechado ? 1 : 0) +
+           ";" + mot +
+           ";" + IntegerToString(r.titBarras) +
+           ";" + IntegerToString(r.titEmpate ? 1 : 0) +
+           ";" + ((r.titTBe   > 0) ? IntegerToString((int)(r.titTBe   - r.tSig)) : "") +
+           ";" + ((r.titTStop > 0) ? IntegerToString((int)(r.titTStop - r.tSig)) : "");
+
    FileWriteString(g_csv, line + "\n");
    g_written++;
 
@@ -1390,6 +1455,54 @@ void OnTick()
          rec.advA   = -exc;
          rec.mfePre = rec.favA;
          rec.tMae   = (int)((now - rec.tBar0) / g_ps);
+      }
+
+      // ============== [v1.29] DESFECHO TITULAR (tick a tick) =============
+      // Espelha o S-EA-Pullback_Live: stop InpSimStopATR x ATR sobre o BID de
+      // entrada, BE no degrau ZERO ao atingir InpTitArmATR x ATR, e saida por
+      // sinal novo (carimbada no bloco do ciclo).
+      //
+      // ORDEM DENTRO DO TICK: o operacional checa o fechamento pelo SERVIDOR
+      // antes de chamar AplicaBreakeven(). Num tick em que o stop bate E o BE
+      // ficaria elegivel, o STOP vence — resolucao pessimista pre-registrada.
+      // O caso e' contado em titEmpate para nao ficar invisivel.
+      if(!rec.titFechado)
+      {
+         double armPts  = InpTitArmATR * rec.atrEnt;
+         bool   beEleg  = (!rec.titArmado && rec.atrEnt > 0.0 && rec.favA >= armPts);
+         bool   bateu   = (rec.titSlPreco != 0.0) &&
+                          ((rec.dir > 0) ? (bid <= rec.titSlPreco)
+                                         : (tk.ask >= rec.titSlPreco));
+         if(bateu)
+         {
+            if(beEleg) rec.titEmpate = true;
+            rec.titFechado = true;
+            rec.titMotivo  = rec.titArmado ? 2 : 1;      // 2=BE  1=STOP
+            rec.titTStop   = now;
+            rec.titBarras  = (int)((now - rec.tBar0) / g_ps);
+            // fill NO nivel do SL: compra sai no BID, venda sai no ASK
+            rec.titPnlPts  = (rec.dir > 0)
+               ? (rec.titSlPreco - (rec.priceA + rec.titSpreadEnt * g_point)) / g_point
+               : (rec.priceA - rec.titSlPreco) / g_point;
+         }
+         else
+         {
+            if(beEleg)
+            {
+               // degrau ZERO: o stop vai para o NIVEL BID DA ENTRADA. Venda
+               // soma o spread CORRENTE, exatamente como NivelBidParaSL.
+               rec.titArmado  = true;
+               rec.titTBe     = now;
+               rec.titSlPreco = (rec.dir > 0) ? rec.priceA
+                                              : rec.priceA + (tk.ask - bid);
+            }
+            // marcacao a mercado: titPnlPts fica SEMPRE valido, mesmo aberto.
+            // Nunca sentinela dentro da coluna de valor (item 3 do pre-registro).
+            rec.titPnlPts = (rec.dir > 0)
+               ? (bid - (rec.priceA + rec.titSpreadEnt * g_point)) / g_point
+               : (rec.priceA - tk.ask) / g_point;
+            rec.titBarras = (int)((now - rec.tBar0) / g_ps);
+         }
       }
 
       // ================= [v1.21] (A) PIRAMIDE SIMULTANEA =================

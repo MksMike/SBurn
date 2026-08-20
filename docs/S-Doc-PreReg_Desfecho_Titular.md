@@ -1,5 +1,5 @@
 # Pre-registro — coluna de DESFECHO TITULAR no EA de medicao
-**Versao:** 1.0 | **Escrito em:** 2026-08-20 | **Estado: especificado, nao implementado**
+**Versao:** 2.0 | **Atualizado:** 2026-08-20 | **Estado: IMPLEMENTADO (v1.29), VALIDADO, DESTRAVOU**
 
 ---
 
@@ -177,6 +177,53 @@ grandeza nao e'.**
 Criterio numerico declarado antes: n dentro de +-10%, P&L dentro de +-20%, e a
 proporcao BE/STOP/SINAL na mesma ordem (BE dominante, STOP minoritario).
 
+### 4.1 CORRECAO do comparador (feita antes de rodar)
+
+Escrevi acima "76 trades / $777,23". **Errado:** a coluna simulada nao tem R2, e
+18 dos 76 sao reentradas. O comparavel e' o subconjunto `seq=0` do CSV do
+operacional: **58 trades, 765.817 pts, saidas BE 32 / SINAL 21 / STOP 4 /
+FIMTESTE 1**. Bate com o "C_HIST sem R2 = $751,58 / 58" da tabela 5.1.
+
+### 4.2 RESULTADO — reprovou por proxy, passou no teste direto
+
+**Proxy (re-derivar os filtros): REPROVOU.** Aplicando regime + histograma +
+spread<=260 aos 568 sinais dao **84**, contra 58: **+44,8%**, fora do +-10%.
+
+Diagnostico, por veto e em sequencia:
+
+| veto | medicao | operacional |
+|---|---|---|
+| regime | 254 | **254** |
+| histograma | 111 | **111** |
+| spread | 119 | **152** |
+
+Regime e histograma replicam **exatamente**. A divergencia esta' toda no
+spread, e a causa e' de INSTANTE, nao de regra: o operacional testa o spread
+**dentro de `Abre()`** (linha 640), que roda **depois** de `Fecha("SINAL")` ter
+enviado ordem de mercado — e no tester executar ordem **avanca o tick**. Ele
+filtra sobre um instante posterior ao que a medicao grava em `spread_sig_pts`.
+
+**Teste direto (a leitura literal do que foi pre-registrado — "os MESMOS sinais
+que o operacional efetivamente tomou"): PASSOU.** Casando os 58 trades reais
+com os sinais por horario (tolerancia de 1 barra), 57 casaram:
+
+| | n | P&L (pts) | saidas |
+|---|---|---|---|
+| operacional (real) | 57 | 757.653 | BE 32 · SINAL 21 · STOP 4 |
+| simulado (`tit_*`) | 57 | 742.294 | BE 33 · SINAL 20 · STOP 4 |
+
+- **motivo de saida IDENTICO em 56 de 57 (98%)** — e' a assinatura da ORDEM dos
+  eventos, o teste mais informativo do gate
+- P&L **-2,0%**, dentro do +-20%
+- erro por trade: mediana **-225 pts**, ~1 spread, na direcao **PESSIMISTA**
+- 1 discordancia: real saiu por SINAL, simulado por BE
+- **0 empates intrabarra** em 568 sinais — resolucao de tick torna o caso raro
+- confirmacao independente que eu nao tinha procurado: **366 de 568 saem por BE
+  = 64,4%**, contra os **~63% de scratch** que o projeto mede desde sempre
+
+**Veredito: instrumento validado.** A reprovacao do proxy e' propriedade do
+INSTANTE do filtro, nao do desfecho simulado.
+
 ---
 
 ## 5. Recalcular o poder imediatamente
@@ -192,10 +239,39 @@ Assim que a coluna passar a secao 4, refazer a Etapa 0 da 5c com a dispersao do
 os rotulos ANTES de injetar o efeito — a primeira versao injetava no dado real
 e media efeito existente + delta.
 
+### 5.1 RESULTADO — destravou
+
+**Dispersao, que era o gargalo:**
+
+| desfecho | p25 | mediana | p75 | **IQR** |
+|---|---|---|---|---|
+| `(MFE15−MAE15)/ATR` (antigo) | −2,13 | +0,02 | +2,24 | **4,37 ATR** |
+| `tit_pnl/ATR` (truncado) | −0,10 | −0,06 | −0,04 | **0,06 ATR** |
+
+**Reducao de 69x.** O truncamento faz o que devia: 366 dos 568 saem por BE, que
+e' scratch, e a distribuicao colapsa perto de zero.
+
+**A escala do efeito de referencia muda junto, e isso e' obrigatorio dizer:**
+com IQR de 0,06 ATR, procurar "0,2-0,3 ATR" seria procurar efeito 5x maior que a
+dispersao inteira. O efeito plausivel agora e' da ordem do **custo**
+(260 pts = **0,048 ATR**).
+
+**Poder do omnibus** (nulo sintetico, rotulos embaralhados antes de injetar):
+
+| efeito | pts | poder |
+|---|---|---|
+| 0,000 ATR | 0 | **4%** — controle, calibrado em alfa=5% |
+| 0,010 ATR | 54 | 24% |
+| 0,025 ATR | 135 | **98%** |
+| 0,048 ATR (~1 custo) | 259 | **100%** |
+| 0,100 ATR | 540 | 100% |
+
+Contra **4% em 0,3 ATR** no desfecho antigo. **Ambas as frentes desbloqueiam.**
+
 | resultado | acao |
 |---|---|
-| poder adequado | 5c e frente do spread **desbloqueiam** |
-| poder ainda baixo | ambas **seguem bloqueadas**, agora com razao MEDIDA e nao suposta. Registrar e parar |
+| poder adequado | 5c e frente do spread **desbloqueiam** <- **foi este** |
+| poder ainda baixo | ambas seguem bloqueadas, com razao MEDIDA |
 
 ---
 
