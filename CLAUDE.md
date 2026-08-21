@@ -747,6 +747,30 @@ que o projeto ja' mediu como negativa) · osciladores primos (MACD/RSI/TrendWave
     E' estrutura, e a codificacao linear a destruiu em vez de demonstrar
     ausencia. `(minutos - 480) mod 1440` poe 07:59 e 08:00 nos extremos opostos
     da escala sendo instantes vizinhos. Remedicao pendente — ver a fila 5c.
+21. **EXECUTAR ORDEM AVANCA O TICK: condicao de borda avaliada depois de uma
+    execucao e' IRREPRODUZIVEL fora do operacional.** Nao e' defeito de
+    instrumento — e' propriedade do tester, e ja' apareceu TRES vezes de forma
+    independente:
+    (a) **filtro de spread do sinal** — o operacional testa dentro de `Abre()`,
+        que roda depois de `Fecha("SINAL")` executar; a medicao vetou 119 e ele
+        vetou 152;
+    (b) **instante de abertura da piramide** — `g_pirBidRef` e' o bid lido
+        dentro de `Abre()`; em 3 sinais de ATR anomalo poucos segundos decidem
+        se a perna arma o BE ou morre no sinal seguinte;
+    (c) **gatilho da R2** — o log de diagnostico de 2026-08-21 mostrou **25
+        gatilhos avaliados**, exatamente os 25 da simulacao, com `alinhado=1` em
+        **25 de 25**: o regime NUNCA barra. O que barra e' o spread avaliado no
+        `Abre()`, um tick depois. Quatro gatilhos tinham spread 360/360/396 e
+        **sete estavam exatamente em 260,0**, a fronteira do `> InpMaxSpread`.
+        25 - 4 - 3 = 18, o numero do operacional.
+    **ASSINATURA para reconhecer:** divergencia concentrada em casos MARGINAIS,
+    direcao NAO sistematica, e o mecanismo reproduzindo perfeitamente onde a
+    condicao e' folgada (na R2, 17 de 17 disparos coincidentes tem diferenca de
+    horario de ZERO segundos).
+    **Consequencia:** simulacao no EA de medicao reproduz mecanismo, nao
+    fronteira. Portao com criterio de +-10% em contagem vai reprovar sempre que
+    houver massa na borda. Ou se afrouxa o criterio para esses casos, ou se
+    aceita que aquele componente nao e' reproduzivel.
 18. **Falha ao armar o breakeven nao entra em NENHUM contador.** A linha de resumo
     reporta `sinal/contexto/abrir/fechar`; BE nao esta' la'. `g_tentBE` e' por
     posicao e o `Print` so' sai na 1a tentativa. Pior: apos `InpMaxTentBE` falhas
