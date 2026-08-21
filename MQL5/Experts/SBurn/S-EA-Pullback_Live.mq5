@@ -417,6 +417,9 @@ long     g_blockSpread=0, g_vetoRegime=0, g_vetoConflu=0, g_vetoHist=0;
 long     g_r2Disparos=0, g_r2Expirados=0, g_pirAdicoes=0;
 long     g_pirRejeitadas=0, g_pirSemTicket=0;  // [B17] casos opostos, contados separados
 long     g_saidaBE=0, g_saidaStop=0, g_saidaSinal=0;
+//--- [DIAG-R2] usada SO' para nao repetir o log na mesma barra.
+//    Nao entra em nenhuma decisao. Build de diagnostico: remover.
+datetime g_diagBar = 0;
 //--- [v2.06] instrumentacao do breakeven e da gravacao
 long     g_beDesistiu=0;   // posicoes que esgotaram InpMaxTentBE e correram SEM BE
 long     g_beRecusas=0;    // total de PositionModify recusados (todas as posicoes)
@@ -1048,6 +1051,7 @@ int OnInit()
 
    AdotaPosicao();
 
+   Print(">>> BUILD DE DIAGNOSTICO R2 <<< nao usar para medir resultado; restaurar o commit de ida apos achar a causa");
    PrintFormat("S-EA-Pullback_Live v2.07 | cand=%s (conflu=%s hist=%s) | TF=%s SPTF=%s "
                "arm=%.2fxATR stop=%.2fxATR lote=%.2f maxSpread=%.0f | R2=%s "
                "piramide=%s(inicio %.1f passo %.1f max %d)",
@@ -1247,10 +1251,41 @@ void OnTick()
          if(excS > g_r2MaxDesde) g_r2MaxDesde = excS;
 
          // gatilho: piso cumprido, recuo esgotado, e rompeu o topo congelado
+         //--- [DIAG-R2] fotografia da avaliacao, uma por barra. Grava a
+         //    DISTANCIA a cada condicao, nao o booleano: e' a margem que
+         //    distingue "um tick desfaz" de "folgado".
+         if(barra != g_diagBar)
+         {
+            g_diagBar = barra;
+            int npMain = 0, npPir = 0;
+            for(int z = PositionsTotal() - 1; z >= 0; z--)
+            {
+               ulong zt = PositionGetTicket(z);
+               if(zt == 0) continue;
+               if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+               long zm = PositionGetInteger(POSITION_MAGIC);
+               if(zm == (long)InpMagic)         npMain++;
+               else if(zm == (long)InpPirMagic) npPir++;
+            }
+            PrintFormat("R2DIAG;%s;desde=%d;d_piso=%d;excS=%.1f;topo=%.1f;"
+                        "d_topo=%.1f;maxdesde=%.1f;pioradv=%.1f;d_calma=%d;"
+                        "validade=%d;posMain=%d;posPir=%d;spread=%.1f",
+                        TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+                        desde, desde - InpR2Piso, excS, g_r2Topo,
+                        excS - g_r2Topo, g_r2MaxDesde, g_r2PiorAdv,
+                        (int)((barra - g_r2BarraPior) / ps) - InpR2Calma,
+                        InpR2Validade - desde, npMain, npPir, SpreadPts());
+         }
+
          if(desde >= InpR2Piso && g_r2Topo != 0.0 && excS > g_r2Topo)
          {
             bool okReg2;
             double reg2 = LeBuffer(g_hSPreg, 27, 1, okReg2);
+            PrintFormat("R2DIAG;%s;GATILHO;okReg=%d;reg2=%.2f;dir=%d;"
+                        "alinhado=%d;spread=%.1f;maxSpread=%.1f",
+                        TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES|TIME_SECONDS),
+                        (int)okReg2, reg2, g_r2Dir, (int)(reg2 * g_r2Dir > 0),
+                        SpreadPts(), InpMaxSpread);
             if(okReg2 && reg2 * g_r2Dir > 0)      // regime ainda alinhado
             {
                int dirRe = g_r2Dir;
