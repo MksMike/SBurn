@@ -336,7 +336,7 @@
 //| CSV (FILE_COMMON): <root>\test_consistgate_<simbolo>_<per>_<data>|
 //+------------------------------------------------------------------+
 #property copyright "MKS-Engine"
-#property version   "1.30"
+#property version   "1.31"
 // A assinatura de runtime deriva DESTE define. Ao subir a versao,
 // mudar as duas linhas juntas — sao vizinhas de proposito.
 #define  S_VER "1.28"
@@ -454,6 +454,13 @@ input double             InpCtrStop3     = 2.00;  // Stop 3
 
 input group "=== Escada de degrau fixo (GRADE, multiplos de ATR) ==="
 input double             InpSimStopATR   = 3.67;  // Stop inicial, x ATR
+input double             InpPartMaxSpread = 260;  // [v1.31] filtro de spread por ABERTURA (espelha InpMaxSpread)
+input double             InpPartPirInicio = 2.00; // [v1.31] 1a adicao da piramide, x ATR (espelha InpPirInicioATR)
+input double             InpPartPirPasso  = 1.00; // [v1.31] espacamento entre adicoes (InpPirPassoATR)
+input int                InpPartPirMax    = 2;    // [v1.31] maximo de adicoes (InpPirMaxPos)
+input int                InpPartR2Piso    = 5;    // [v1.31] barras minimas apos o scratch (InpR2Piso)
+input int                InpPartR2Calma   = 3;    // [v1.31] barras sem novo extremo = esgotou (InpR2Calma)
+input int                InpPartR2Validade = 120; // [v1.31] validade do monitoramento (InpR2Validade)
 input double             InpTitArmATR    = 0.73;  // [v1.29] BE do desfecho TITULAR, x ATR (espelha InpArmATR)
 input double             InpBeArm1       = 0.40;  // Armar degrau em, x ATR (1)
 input double             InpBeArm2       = 0.73;  // Armar degrau em, x ATR (2)
@@ -604,6 +611,37 @@ struct GateRec
    // titular. f=0 reproduz o titular por construcao - e' o controle e o portao.
    double   pisoSl[4];        // preco ABSOLUTO do SL de cada f
    double   pisoNivel[4];     // nivel de EXCURSAO do piso, em pontos (catraca)
+   // ===== [v1.31] PARTICIPACAO: espelha a piramide e a R2 OPERACIONAIS =====
+   // Nao e' a grade pir*/re* acima (2 passos x 5, 3 ranges): e' a regra exata
+   // do S-EA-Pullback_Live v2.07, com a contabilidade do tit_pnl (valor sempre
+   // valido, flag separada, sem sentinela).
+   //   piramide: adicao k em (InpPartPirInicio + k*InpPartPirPasso) x ATR da
+   //             excursao da PRINCIPAL; BE e stop proprios de cada perna; e ela
+   //             SOBREVIVE ao BE e ao STOP da principal (decisao documentada no
+   //             cabecalho do operacional, nao bug) - so' sai em sinal novo.
+   //   R2: dispara em scratch (BE ou STOP, nunca SINAL), congela o topo do
+   //       range apos InpPartR2Calma barras sem novo pior adverso, entra no
+   //       rompimento. O sentinela topo==0 fica VIVO de proposito: e' o
+   //       comportamento atual do operacional e sem ele o portao nao fecha.
+   double   ppirEnt[2], ppirSl[2], ppirSpr[2], ppirPnl[2];
+   datetime ppirT[2];         // instante de abertura de cada perna
+   datetime pr2T;             // instante do disparo da reentrada
+   bool     ppirArm[2], ppirFech[2];
+   int      ppirMot[2], ppirN;
+   bool     pr2Ativo, pr2Feita, pr2Aberta, pr2Arm, pr2Fech;
+   double   pr2BidRef, pr2PiorAdv, pr2MaxDesde, pr2Topo;
+   datetime pr2BarraPior, pr2Inicio;
+   double   pr2Ent, pr2Sl, pr2Spr, pr2Atr, pr2Pnl;
+   int      pr2Mot, pr2Barras;
+   int      pSimultMax;       // maximo de posicoes SIMULTANEAS no ciclo
+   bool     pCicloFim;        // o sinal novo ja' encerrou a participacao?
+                              // O rec sobrevive ao carimbo do ciclo esperando o
+                              // horizonte de 30 barras fechar. Sem esta trava a
+                              // piramide continuava ABRINDO pernas depois de o
+                              // operacional ja' ter chamado PiramideFechar, e a
+                              // R2 podia RE-ARMAR. Medido em 2026-08-21: 10
+                              // pernas abertas apos saida por SINAL, onde o
+                              // operacional abre zero por construcao.
    bool     pisoArm[4];
    bool     pisoFechado[4];
    int      pisoMotivo[4];    // 0=ABERTO 1=STOP 2=PISO 3=SINAL
@@ -771,7 +809,14 @@ int OnInit()
       // gatilho do BE titular. piso_f0 REPRODUZ tit_pnl por construcao -
       // e o controle e o portao de consistencia da implementacao.
       "mfe_final;mfe_barras;barras_pos_mfe;rec_max_pre;"
-      "piso_f0;piso_f0_mot;piso_f25;piso_f25_mot;piso_f50;piso_f50_mot;piso_f75;piso_f75_mot\n");
+      "piso_f0;piso_f0_mot;piso_f25;piso_f25_mot;piso_f50;piso_f50_mot;piso_f75;piso_f75_mot;"
+      // [v1.31] PARTICIPACAO. part_pir_pnl e a soma das pernas; part_r2_pnl
+      // a reentrada. Todos sempre validos - com part_r2_disparou=0 o
+      // part_r2_pnl vale 0 porque nao houve trade, nao porque falta dado.
+      // part_simult_max e a EXPOSICAO real: posicoes ao mesmo tempo.
+      "part_pir_n;part_pir_pnl;part_pir1_mot;part_pir2_mot;"
+      "part_r2_disparou;part_r2_pnl;part_r2_mot;part_simult_max;"
+      "part_pir1_seg;part_pir2_seg;part_r2_seg\n");
 
    ArrayResize(g_recs, 0, 64);
    ArrayResize(g_mfe15B_pass, 0, 1024);
@@ -1128,6 +1173,34 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
                          + g_recs[li].titSpreadEnt * g_point)) / g_point
             : (g_recs[li].priceA - askNow) / g_point;
       }
+      //--- [v1.31] sinal novo encerra piramide e R2 (PiramideFechar + a
+      //    reentrada seguindo a mesma regra da principal)
+      {
+         int li3 = g_lastRec;
+         double askN3 = bidNow + SpreadPts() * g_point;
+         for(int k = 0; k < g_recs[li3].ppirN; k++)
+            if(!g_recs[li3].ppirFech[k])
+            {
+               g_recs[li3].ppirFech[k] = true;
+               g_recs[li3].ppirMot[k]  = 3;                   // SINAL
+               g_recs[li3].ppirPnl[k]  = (g_recs[li3].dir > 0)
+                  ? (bidNow - (g_recs[li3].ppirEnt[k]
+                               + g_recs[li3].ppirSpr[k] * g_point)) / g_point
+                  : (g_recs[li3].ppirEnt[k] - askN3) / g_point;
+            }
+         if(g_recs[li3].pr2Aberta && !g_recs[li3].pr2Fech)
+         {
+            g_recs[li3].pr2Fech = true;
+            g_recs[li3].pr2Mot  = 3;
+            g_recs[li3].pr2Pnl  = (g_recs[li3].dir > 0)
+               ? (bidNow - (g_recs[li3].pr2Ent
+                            + g_recs[li3].pr2Spr * g_point)) / g_point
+               : (g_recs[li3].pr2Ent - askN3) / g_point;
+         }
+         g_recs[li3].pr2Ativo = false;
+         g_recs[li3].pCicloFim = true;   // trava: nada mais abre
+      }
+
       //--- [v1.30] o mesmo sinal fecha os pisos que ainda estiverem abertos
       for(int pf = 0; pf < 4; pf++)
          if(!g_recs[g_lastRec].pisoFechado[pf])
@@ -1233,6 +1306,21 @@ void OnSignal(const int dir, const double bidNow, const ulong mktMs)
    // [v1.30] motor de saida
    rec.titMfe = 0.0; rec.titMfeBarras = 0;
    rec.titRecRun = 0.0; rec.titRecMaxPre = 0.0;
+   // [v1.31] participacao
+   for(int pk = 0; pk < 2; pk++)
+   {
+      rec.ppirEnt[pk] = 0.0; rec.ppirSl[pk] = 0.0; rec.ppirSpr[pk] = 0.0;
+      rec.ppirPnl[pk] = 0.0; rec.ppirArm[pk] = false; rec.ppirT[pk] = 0;
+      rec.ppirFech[pk] = false; rec.ppirMot[pk] = 0;
+   }
+   rec.ppirN = 0;
+   rec.pr2Ativo = false; rec.pr2Feita = false; rec.pr2Aberta = false;
+   rec.pr2Arm = false;   rec.pr2Fech = false;
+   rec.pr2BidRef = 0.0;  rec.pr2PiorAdv = 0.0; rec.pr2MaxDesde = 0.0;
+   rec.pr2Topo = 0.0;    rec.pr2BarraPior = 0; rec.pr2Inicio = 0;
+   rec.pr2Ent = 0.0; rec.pr2Sl = 0.0; rec.pr2Spr = 0.0; rec.pr2Atr = 0.0;
+   rec.pr2Pnl = 0.0; rec.pr2Mot = 0; rec.pr2Barras = 0; rec.pr2T = 0;
+   rec.pSimultMax = 1; rec.pCicloFim = false;
    for(int pf = 0; pf < 4; pf++)
    {
       rec.pisoSl[pf]      = rec.titSlPreco;   // mesmo stop inicial do titular
@@ -1376,6 +1464,26 @@ void WriteRec(const GateRec &r)
       line += ";" + DoubleToString(r.pisoPnl[pf], 1) + ";" + pm;
    }
 
+   //--- [v1.31] participacao
+   double ppTot = 0.0;
+   for(int k = 0; k < r.ppirN; k++) ppTot += r.ppirPnl[k];
+   string pm1 = (r.ppirN < 1) ? "" :
+                (r.ppirMot[0] == 1) ? "STOP" : (r.ppirMot[0] == 2) ? "BE" :
+                (r.ppirMot[0] == 3) ? "SINAL" : "ABERTO";
+   string pm2 = (r.ppirN < 2) ? "" :
+                (r.ppirMot[1] == 1) ? "STOP" : (r.ppirMot[1] == 2) ? "BE" :
+                (r.ppirMot[1] == 3) ? "SINAL" : "ABERTO";
+   string rm  = (!r.pr2Aberta) ? "" :
+                (r.pr2Mot == 1) ? "STOP" : (r.pr2Mot == 2) ? "BE" :
+                (r.pr2Mot == 3) ? "SINAL" : "ABERTO";
+   line += ";" + IntegerToString(r.ppirN) +
+           ";" + DoubleToString(ppTot, 1) + ";" + pm1 + ";" + pm2 +
+           ";" + IntegerToString(r.pr2Aberta ? 1 : 0) +
+           ";" + DoubleToString(r.pr2Aberta ? r.pr2Pnl : 0.0, 1) + ";" + rm +
+           ";" + IntegerToString(r.pSimultMax) +
+           ";" + ((r.ppirT[0] > 0) ? IntegerToString((int)(r.ppirT[0] - r.tSig)) : "") +
+           ";" + ((r.ppirT[1] > 0) ? IntegerToString((int)(r.ppirT[1] - r.tSig)) : "") +
+           ";" + ((r.pr2T    > 0) ? IntegerToString((int)(r.pr2T    - r.tSig)) : "");
    FileWriteString(g_csv, line + "\n");
    g_written++;
 
@@ -1520,6 +1628,140 @@ void OnTick()
          rec.advA   = -exc;
          rec.mfePre = rec.favA;
          rec.tMae   = (int)((now - rec.tBar0) / g_ps);
+      }
+
+      // ============== [v1.31] PARTICIPACAO: piramide e R2 ================
+      // Roda mesmo com o titular FECHADO: a piramide sobrevive ao BE e ao STOP
+      // da principal por decisao documentada, e a R2 so' existe DEPOIS do
+      // scratch. Ambas so' encerram no sinal novo (bloco do ciclo).
+      if(rec.atrEnt > 0.0 && !rec.pCicloFim)
+      {
+         double excRef = (bid - rec.priceA) / g_point * rec.dir;   // da PRINCIPAL
+         int    simult = (rec.titFechado ? 0 : 1);
+
+         //--- PIRAMIDE: abre a adicao k no alvo dela
+         if(rec.ppirN < InpPartPirMax && rec.ppirN < 2)
+         {
+            double alvo = (InpPartPirInicio + rec.ppirN * InpPartPirPasso) * rec.atrEnt;
+            // PiramideAbrir filtra SPREAD por perna: adicao no momento errado
+            // simplesmente nao abre. Sem isto a simulacao abria 77 contra 65.
+            double sprPir = (tk.ask - bid) / g_point;
+            if(excRef >= alvo && (InpPartMaxSpread <= 0 || sprPir <= InpPartMaxSpread))
+            {
+               int k = rec.ppirN;
+               rec.ppirEnt[k] = bid;
+               rec.ppirT[k]   = now;
+               rec.ppirSpr[k] = (tk.ask - bid) / g_point;
+               double nb = bid - rec.dir * InpSimStopATR * rec.atrEnt * g_point;
+               rec.ppirSl[k]  = (rec.dir > 0) ? nb : nb + (tk.ask - bid);
+               rec.ppirN++;
+            }
+         }
+         //--- gerencia cada perna: BE proprio em InpTitArmATR do PROPRIO nivel
+         for(int k = 0; k < rec.ppirN; k++)
+         {
+            if(rec.ppirFech[k]) continue;
+            simult++;
+            double excK = (bid - rec.ppirEnt[k]) / g_point * rec.dir;
+            bool bt = (rec.dir > 0) ? (bid <= rec.ppirSl[k]) : (tk.ask >= rec.ppirSl[k]);
+            if(bt)
+            {
+               rec.ppirFech[k] = true;
+               rec.ppirMot[k]  = rec.ppirArm[k] ? 2 : 1;      // BE : STOP
+               rec.ppirPnl[k]  = (rec.dir > 0)
+                  ? (rec.ppirSl[k] - (rec.ppirEnt[k] + rec.ppirSpr[k] * g_point)) / g_point
+                  : (rec.ppirEnt[k] - rec.ppirSl[k]) / g_point;
+               continue;
+            }
+            if(!rec.ppirArm[k] && excK >= InpTitArmATR * rec.atrEnt)
+            {
+               rec.ppirArm[k] = true;
+               rec.ppirSl[k]  = (rec.dir > 0) ? rec.ppirEnt[k]
+                                              : rec.ppirEnt[k] + (tk.ask - bid);
+            }
+            rec.ppirPnl[k] = (rec.dir > 0)
+               ? (bid - (rec.ppirEnt[k] + rec.ppirSpr[k] * g_point)) / g_point
+               : (rec.ppirEnt[k] - tk.ask) / g_point;
+         }
+
+         //--- R2: arma no scratch (BE ou STOP, nunca SINAL)
+         if(!rec.pr2Ativo && !rec.pr2Feita && rec.titFechado &&
+            (rec.titMotivo == 1 || rec.titMotivo == 2))
+         {
+            rec.pr2Ativo    = true;
+            rec.pr2BidRef   = bid;
+            rec.pr2PiorAdv  = 0.0; rec.pr2MaxDesde = 0.0; rec.pr2Topo = 0.0;
+            rec.pr2Inicio   = iTime(_Symbol, PERIOD_CURRENT, 0);
+            rec.pr2BarraPior = rec.pr2Inicio;
+         }
+         if(rec.pr2Ativo && !rec.pr2Aberta)
+         {
+            datetime barra = iTime(_Symbol, PERIOD_CURRENT, 0);
+            int desde = (int)((barra - rec.pr2Inicio) / g_ps);
+            double excS = (bid - rec.pr2BidRef) / g_point * rec.dir;
+            if(desde > InpPartR2Validade) rec.pr2Ativo = false;
+            else
+            {
+               // ORDEM importa e eu a tinha invertido: no operacional o
+               // g_r2MaxDesde e' atualizado DEPOIS do congelamento, entao o
+               // topo congela com o maximo ANTERIOR ao tick corrente.
+               if(-excS > rec.pr2PiorAdv)
+               { rec.pr2PiorAdv = -excS; rec.pr2BarraPior = barra; rec.pr2Topo = 0.0; }
+               else if(rec.pr2Topo == 0.0 &&
+                       (int)((barra - rec.pr2BarraPior) / g_ps) >= InpPartR2Calma)
+                  rec.pr2Topo = rec.pr2MaxDesde;   // CONGELA (sentinela vivo)
+               if(excS > rec.pr2MaxDesde) rec.pr2MaxDesde = excS;
+               // No disparo o operacional re-checa o REGIME (buffer 27 no
+               // InpSPTF) e, se virou, DESCARTA o monitoramento. E a entrada
+               // passa por Abre(), que filtra spread. Sem as duas a simulacao
+               // disparava 29 contra 18, com o P&L trocando de sinal.
+               double sprR2 = (tk.ask - bid) / g_point;
+               int    reg2  = (int)ReadCtx(g_hSP, 27);
+               if(desde >= InpPartR2Piso && rec.pr2Topo != 0.0 && excS > rec.pr2Topo
+                  && reg2 * rec.dir <= 0)
+                  rec.pr2Ativo = false;                    // regime virou: descarta
+               else if(desde >= InpPartR2Piso && rec.pr2Topo != 0.0 && excS > rec.pr2Topo
+                       && (InpPartMaxSpread <= 0 || sprR2 <= InpPartMaxSpread))
+               {
+                  rec.pr2Aberta = true; rec.pr2Feita = true; rec.pr2Ativo = false;
+                  rec.pr2Ent = bid;
+                  rec.pr2T   = now;
+                  rec.pr2Spr = (tk.ask - bid) / g_point;
+                  rec.pr2Atr = ReadCtxD(g_hTMO, 16) / g_point;   // ATR na REENTRADA
+                  if(rec.pr2Atr <= 0.0) rec.pr2Atr = rec.atrEnt;
+                  double nb = bid - rec.dir * InpSimStopATR * rec.pr2Atr * g_point;
+                  rec.pr2Sl = (rec.dir > 0) ? nb : nb + (tk.ask - bid);
+                  rec.pr2Barras = 0;
+               }
+            }
+         }
+         if(rec.pr2Aberta && !rec.pr2Fech)
+         {
+            simult++;
+            double excR = (bid - rec.pr2Ent) / g_point * rec.dir;
+            bool bt = (rec.dir > 0) ? (bid <= rec.pr2Sl) : (tk.ask >= rec.pr2Sl);
+            if(bt)
+            {
+               rec.pr2Fech = true;
+               rec.pr2Mot  = rec.pr2Arm ? 2 : 1;
+               rec.pr2Pnl  = (rec.dir > 0)
+                  ? (rec.pr2Sl - (rec.pr2Ent + rec.pr2Spr * g_point)) / g_point
+                  : (rec.pr2Ent - rec.pr2Sl) / g_point;
+            }
+            else
+            {
+               if(!rec.pr2Arm && excR >= InpTitArmATR * rec.pr2Atr)
+               {
+                  rec.pr2Arm = true;
+                  rec.pr2Sl  = (rec.dir > 0) ? rec.pr2Ent
+                                             : rec.pr2Ent + (tk.ask - bid);
+               }
+               rec.pr2Pnl = (rec.dir > 0)
+                  ? (bid - (rec.pr2Ent + rec.pr2Spr * g_point)) / g_point
+                  : (rec.pr2Ent - tk.ask) / g_point;
+            }
+         }
+         if(simult > rec.pSimultMax) rec.pSimultMax = simult;
       }
 
       // ============ [v1.30] MOTOR DE SAIDA: M(t), rec(t) e pisos ==========
